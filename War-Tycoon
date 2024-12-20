@@ -1,0 +1,58 @@
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local gameSystems = workspace:FindFirstChild("Game Systems")
+if not gameSystems then return end
+
+local holidayPromoFolder = gameSystems:FindFirstChild("Roblox Holiday Promo")
+if not holidayPromoFolder then return end
+
+local presentsFolder = holidayPromoFolder:FindFirstChild("Presents")
+if not presentsFolder then return end
+
+local function teleportTo(part)
+    if part and part:IsA("BasePart") then
+        humanoidRootPart.CFrame = part.CFrame + Vector3.new(0, 5, 0)
+        task.wait(0.7)
+    end
+end
+
+local function interactWithPrompt(prompt)
+    if prompt and prompt:IsA("ProximityPrompt") then
+        fireproximityprompt(prompt)
+        task.wait(0.5)
+    end
+end
+
+local function collectPresents()
+    local collectedCount = 0
+
+    for i = 1, 35 do
+        local presentName = "Present" .. i
+        local present = presentsFolder:FindFirstChild(presentName)
+        if present and present:IsA("Model") then
+            local prompt = present:FindFirstChild("PresentPrompt", true)
+            if prompt then
+                teleportTo(present:FindFirstChild("PresentColor1") or present.PrimaryPart)
+                interactWithPrompt(prompt)
+                collectedCount += 1
+            end
+        end
+    end
+
+    return collectedCount
+end
+
+local totalCollected = 0
+local maxRetries = 3
+for retry = 1, maxRetries do
+    local collectedNow = collectPresents()
+    totalCollected = totalCollected + collectedNow
+
+    if collectedNow == 0 then        
+        break
+    end
+
+    task.wait(1)
+end
