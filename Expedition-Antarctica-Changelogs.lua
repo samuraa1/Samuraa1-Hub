@@ -1,8 +1,9 @@
-local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/EnesXVC/librarys/main/SearchAndChangeLogLibrary/Source"))()
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesXVC/librarys/main/SearchAndChangeLogLibrary/Source'))()
 
 Library:CreateChangelogDialog({
     Title = "Expedition Antarctica Script - Changelogs",
     ChangelogText = [[
+        Version: 3.0.0
 [+] Added Tabs
 - Home Tab
 - Vulnerabilities Tab
@@ -27,18 +28,23 @@ Library:CreateChangelogDialog({
 - JumpPower
 - Camera Zoom
 
+Also Added Camera GroupBox, Features:
+- No Camera Shake
+- FOV Changer
+- Camera Zoom (Now In This GroupBox)
+- Inf Camera Zoom
+
 [+] Visuals Tab
 - Rewritten Fullbright
-- Auto Change Day To Night
 
 [+] Teleports Tab
 - Anti Gameplay Paused
 
 [+] Get Items Tab
-- Fixed Get Energy Bar
+- Finally Fixed Get Energy Bar
 
 [+] Vulnerabilities Tab
-- Coin Farm (60K+ Coins/Hour, very OP)
+- Coin Farm (35K+ Coins Per Hour, very OP)
 - Spawn Boats For Free (Kayak, Double Kayak, Zodiac)
 - Freeze Boosts (Speed, Jump, Tightrope, Fall Resistance, Avalanche, Invincibility)
 - Freeze All Selected Boosts
