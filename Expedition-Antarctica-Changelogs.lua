@@ -4,14 +4,14 @@ Library:CreateChangelogDialog({
     Title = "Expedition Antarctica Script - Changelogs",
     ChangelogText = [[
         Version: 3.0.0
-[+] Added Tabs
+[+] Added Tabs:
 - Home Tab
 - Vulnerabilities Tab
 - Missions Tab
 - Boats Tab
 - Server Tab
 
-[+] Home Tab Features
+[+] Home Tab Features:
 - Welcome Label
 - Copy Discord Server Link
 - Join Discord Server
@@ -19,7 +19,7 @@ Library:CreateChangelogDialog({
 - Set FPS
 - Credits
 
-[+] Local Player Tab (Rewritten All Features)
+[+] Local Player Tab (Rewritten All Features):
 - Anti AFK
 - Infinite Jump (with Keybind)
 - Fly
@@ -34,16 +34,16 @@ Also Added Camera GroupBox, Features:
 - Camera Zoom (Now In This GroupBox)
 - Inf Camera Zoom
 
-[+] Visuals Tab
+[+] Visuals Tab:
 - Rewritten Fullbright
 
-[+] Teleports Tab
+[+] Teleports Tab:
 - Anti Gameplay Paused
 
-[+] Get Items Tab
+[+] Get Items Tab:
 - Finally Fixed Get Energy Bar
 
-[+] Vulnerabilities Tab
+[+] Vulnerabilities Tab:
 - Coin Farm (35K+ Coins Per Hour, very OP)
 - Spawn Boats For Free (Kayak, Double Kayak, Zodiac)
 - Freeze Boosts (Speed, Jump, Tightrope, Fall Resistance, Avalanche, Invincibility)
@@ -51,24 +51,27 @@ Also Added Camera GroupBox, Features:
 - Change Boosts Time
 - Infinite Boosts
 
-[+] Missions Tab
+[+] Missions Tab:
 - Auto Unlock Missions
 - Teleport To Missions Center
 - Missions Autofarm
 
-[+] Boats Tab
+[+] Boats Tab:
 - Buy Kayak
 - Buy Double Kayak
 - Buy Zodiac
 - Teleport To Boats Spawn
 - Spawn Label
 
-[+] Server Tab
+[+] Server Tab:
 - Server Hop
 - Join Small Server
 - Rejoin Server
 - Join by JobId
 - Copy JobId
+
+[+] UI Changes:
+- Added Icon To All GroupBoxes
     ]],
     Search = false,
     NotifyLibrary = "Luna",
