@@ -1,7 +1,7 @@
 local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesXVC/librarys/main/SearchAndChangeLogLibrary/Source'))()
 
 Library:CreateChangelogDialog({
-    Title = "Expedition Antarctica Script - Changelogs",
+    Title = "Restaurant Tycoon 3 Script - Changelogs",
     ChangelogText = [[
         Version: 1.0.0
         [+] Released
