@@ -4,7 +4,8 @@ Library:CreateChangelogDialog({
     Title = "Restaurant Tycoon 3 Script - Changelogs",
     ChangelogText = [[
         Version: 1.0.0
-        [+] Released
+        + Added Auto Execute
+        + Optimized All AutoFarms + Made Them More Faster
     ]],
     Search = false,
     NotifyLibrary = "Luna",
