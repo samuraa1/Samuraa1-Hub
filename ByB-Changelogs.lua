@@ -3,8 +3,22 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Break your Bones Script - Changelogs",
     ChangelogText = [[
-        Version: 1.0.0
-        + Released
+        Version: 1.1.0
+        + Added Execution Tracker (I logging only ur nickname, game and executor)
+
++ Optimized And Made Better Auto Farm Money
++ Added Auto Rebirth
++ Auto Upgrade Bones In Another GroupBox Now
+
++ Added JumpPower Changer
+
++ Added Server Tab, Features:
+- Server Hop
+- Join Small Server
+- Rejoin Server
+
+- Join By JobId
+- Copy JobId
     ]],
     Search = false,
     NotifyLibrary = "Luna",
