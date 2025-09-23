@@ -3,22 +3,15 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Break your Bones Script - Changelogs",
     ChangelogText = [[
-        Version: 1.1.0
-        + Added Execution Tracker (I logging only ur nickname, game and executor)
+        Version: 1.2.0
+        + Added Auto Spin Character + Spin Speed
++ Added Bypass Gates
++ Removed Tooltips (Useless)
 
-+ Optimized And Made Better Auto Farm Money
-+ Added Auto Rebirth
-+ Auto Upgrade Bones In Another GroupBox Now
++ task.wait For All Upgrades Is 1 Now, For Auto Purchase Next Ragdoll And Auto Refine Ragdoll Is 2
 
-+ Added JumpPower Changer
-
-+ Added Server Tab, Features:
-- Server Hop
-- Join Small Server
-- Rejoin Server
-
-- Join By JobId
-- Copy JobId
++ Slam Duration Maximum 60 → 180
++ Added Info Label For Slam Velocity And Slam Duration
     ]],
     Search = false,
     NotifyLibrary = "Luna",
