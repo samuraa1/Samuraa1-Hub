@@ -3,15 +3,20 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Break your Bones Script - Changelogs",
     ChangelogText = [[
-        Version: 1.2.0
-        + Added Auto Spin Character + Spin Speed
-+ Added Bypass Gates
-+ Removed Tooltips (Useless)
+        Version: 1.3.0
+        + Renamed Main Tab Description
 
-+ task.wait For All Upgrades Is 1 Now, For Auto Purchase Next Ragdoll And Auto Refine Ragdoll Is 2
++ Added Teleports GroupBox:
+- Teleport To Spawn
+- Teleport To Break Bones Zone
+- Teleport To Quests
+- Teleport To Leaderboards
 
-+ Slam Duration Maximum 60 → 180
-+ Added Info Label For Slam Velocity And Slam Duration
++ Added Quests GroupBox:
+- Auto Start Quest
+- Restart Quest
+- Auto Mastery Level
+- Auto Claim Quest
     ]],
     Search = false,
     NotifyLibrary = "Luna",
