@@ -4,19 +4,10 @@ Library:CreateChangelogDialog({
     Title = "Break your Bones Script - Changelogs",
     ChangelogText = [[
         Version: 1.3.0
-        + Renamed Main Tab Description
+        + Rewrited Auto Farm Money (Now Works Very Well)
++ Removed Slam Duration
 
-+ Added Teleports GroupBox:
-- Teleport To Spawn
-- Teleport To Break Bones Zone
-- Teleport To Quests
-- Teleport To Leaderboards
-
-+ Added Quests GroupBox:
-- Auto Start Quest
-- Restart Quest
-- Auto Mastery Level
-- Auto Claim Quest
++ Renamed Auto Spin Character To Spin Character
     ]],
     Search = false,
     NotifyLibrary = "Luna",
