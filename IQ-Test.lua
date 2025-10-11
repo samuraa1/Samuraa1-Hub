@@ -1,7 +1,4 @@
-local maximumiq = 200
-local currentiq = 1
-
-for i = currentiq, maximumiq do
+for i = 1, 200 do
     local args = {
         [1] = i
     }
