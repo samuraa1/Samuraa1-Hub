@@ -4,10 +4,50 @@ Library:CreateChangelogDialog({
     Title = "Break your Bones Script - Changelogs",
     ChangelogText = [[
         Version: 1.3.0
-        + Rewrited Auto Farm Money (Now Works Very Well)
-+ Removed Slam Duration
+        + Added Boost FPS In Home Tab
 
-+ Renamed Auto Spin Character To Spin Character
++ Rewrited Auto Farm Money Again (Now No Bugs With This Feature)
++ Removed Auto Rebirth, Because Devs Removed Rebirths And Replaced Them With Prestige
+
++ Slam Velocity Minimum Value Now - 250
++ Label In Settings GroupBox Is Remaded
+
++ Added Teleport To Store
++ Added Teleport To Pals
++ Added Teleport To Spells
++ Added Teleport To Charm
++ Added Teleport To Prestige
+
++ Fixed Auto Start Quest
++ Fixed Auto Claim Quest
+
++ Added Pals GroupBox:
+- Auto Unlock Pal
+- Auto Claim Daily Cookies
+
++ Added Spells GroupBox:
+- Auto Buy Saving Hand I
+- Auto Buy Saving Hand II
+- Auto Buy Saving Hand III
+
+- Auto Buy Earthquake I
+- Auto Buy Earthquake II
+- Auto Buy Earthquake III
+
+- Auto Buy Crazy Spin I
+- Auto Buy Crazy Spin II
+- Auto Buy Crazy Spin III
+
+- Auto Buy Shift I
+- Auto Buy Shift II
+- Auto Buy Shift III
+
++ Added Charm GroupBox:
+- Auto Start Geko Quest
+- Auto Claim Geko Quest
+
++ Added Prestige GroupBox:
+- Auto Prestige
     ]],
     Search = false,
     NotifyLibrary = "Luna",
