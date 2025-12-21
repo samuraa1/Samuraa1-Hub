@@ -3,8 +3,9 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Raft Tycoon Script - Changelogs",
     ChangelogText = [[
-        Version: 1.0.0
-        + Released
+        Version: 1.0.2
+        + Added Presents ESP
++ Added More Codes To 'Redeem All Valid Codes'
     ]],
     Search = false,
     NotifyLibrary = "Luna",
