@@ -1,5 +1,5 @@
--- MADE BY RIP#6666
--- send issues or suggestions to my discord: discord.gg/rips
+--[[ MADE BY RIP#6666
+send issues or suggestions to my discord: discord.gg/rips ]]
 
 if not _G.Ignore then
     _G.Ignore = {}
@@ -10,7 +10,6 @@ end
 if _G.ConsoleLogs == nil then
     _G.ConsoleLogs = false
 end
-
 if not game:IsLoaded() then
     repeat
         task.wait()
@@ -392,7 +391,6 @@ StarterGui:SetCore("SendNotification", {
     Button1 = "Okay"
 })
 warn("FPS Booster Loaded!")
-
 game.DescendantAdded:Connect(function(value)
     wait(_G.LoadedWait or 1)
     CheckIfBad(value)
