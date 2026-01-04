@@ -5,7 +5,7 @@ local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RT3UI"
+ScreenGui.Name = "ByBUI"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.Parent = game:GetService("CoreGui")
 
@@ -50,7 +50,7 @@ Title.Name = "Title"
 Title.Size = UDim2.new(0, 200, 1, 0)
 Title.Position = UDim2.new(0, 15, 0, 0)
 Title.BackgroundTransparency = 1
-Title.Text = "RT3 Script Update"
+Title.Text = "ByB Script Update"
 Title.TextColor3 = Color3.fromRGB(255, 255, 255)
 Title.TextSize = 16
 Title.Font = Enum.Font.GothamSemibold
@@ -79,7 +79,7 @@ local Message = Instance.new("TextLabel")
 Message.Name = "Message"
 Message.Size = UDim2.new(1, 0, 0, 120)
 Message.BackgroundTransparency = 1
-Message.Text = "Hey guys, new update for RT3 script coming soon!\n\nPlease suggest what features to add or which ones to fix (if there are bugs in some for example).\n\nYou can write to me by going to the 'Home' tab and finding the GroupBox called Feedback."
+Message.Text = "Hey guys, new update for ByB script coming soon!\n\nPlease suggest what features to add or which ones to fix (if there are bugs in some for example).\n\nYou can write to me by going to the 'Home' tab and finding the GroupBox called Feedback."
 Message.TextColor3 = Color3.fromRGB(200, 200, 200)
 Message.TextSize = 14
 Message.Font = Enum.Font.Gotham
