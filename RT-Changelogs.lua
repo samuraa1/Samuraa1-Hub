@@ -3,11 +3,15 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Raft Tycoon Script - Changelogs",
     ChangelogText = [[
-        Version: 1.0.5
-        + Added Anti Tsunami In Miscellaneous GroupBox
-+ Added Anti Tornado
+        Version: 1.0.6
+        + Added Logo
++ Updated Footer
++ Updated UI Size
 
-+ Removed Not Working Codes From 'Redeem All Valid Codes'
++ Removed Presents ESP
+
++ All Codes In 'Redeem All Valid Codes' Are Working
++ Added Info Label About Codes
     ]],
     Search = false,
     NotifyLibrary = "Luna",
