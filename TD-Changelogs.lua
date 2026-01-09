@@ -2,8 +2,16 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "The Dropper Script - Changelogs",
     ChangelogText = [[
-        Version: 1.0.1
-        + Added God Mode
+        Version: 1.0.5
+        + Added Logo
++ Updated Footer
++ Updated UI Size
+
++ Rewrited Auto Complete Levels
++ Added Auto Complete Difficulty Chart Levels + Teleport to End
++ Added Auto Rebirth (For Difficulty Chart Levels)
+
++ Added Teleport To VIP Room
     ]],
     Search = false,
     NotifyLibrary = "Luna",
