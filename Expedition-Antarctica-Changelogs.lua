@@ -3,75 +3,42 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Expedition Antarctica Script - Changelogs",
     ChangelogText = [[
-        Version: 3.0.0
-[+] Added Tabs:
-- Home Tab
-- Vulnerabilities Tab
-- Missions Tab
-- Boats Tab
-- Server Tab
+        Version: 3.1.0
++ Some Optimizations
 
-[+] Home Tab Features:
-- Welcome Label
-- Copy Discord Server Link
-- Join Discord Server
-- View Changelogs
-- Set FPS
-- Credits
++ Added Logo
++ Added Compact Mode For Sidebar
++ Removed Custom Cursor
++ Updated Footer
++ Updated UI Size
++ Added Another Default Theme
 
-[+] Local Player Tab (Rewritten All Features):
-- Anti AFK
-- Infinite Jump (with Keybind)
-- Fly
-- Noclip (with Keybind)
-- WalkSpeed Toggle (with Keybind, Normal & CFrame Methods)
-- JumpPower
-- Camera Zoom
++ Changed Icon For Welcome GroupBox
++ Added Feedback In Home Tab
++ Added Boost FPS In Home Tab
 
-Also Added Camera GroupBox, Features:
-- No Camera Shake
-- FOV Changer
-- Camera Zoom (Now In This GroupBox)
-- Inf Camera Zoom
++ Removed Inf Camera Zoom
++ Added Reset Camera Zoom
 
-[+] Visuals Tab:
-- Rewritten Fullbright
++ Fully Rewrited Auto Farm Expeditions:
++ Added Loop Count
++ Added Jump Pause Before Teleport
++ Added Jump Resume After Teleport
++ Added Waiting Time At Spawn
 
-[+] Teleports Tab:
-- Anti Gameplay Paused
++ Added Infinite Coins
++ Added Auto Change Day To Night
 
-[+] Get Items Tab:
-- Finally Fixed Get Energy Bar
++ Added Info Label About Coin Farm In Vulnerabilities Tab
++ Added Dividers In Boosts GroupBox
 
-[+] Vulnerabilities Tab:
-- Coin Farm (35K+ Coins Per Hour, very OP)
-- Spawn Boats For Free (Kayak, Double Kayak, Zodiac)
-- Freeze Boosts (Speed, Jump, Tightrope, Fall Resistance, Avalanche, Invincibility)
-- Freeze All Selected Boosts
-- Change Boosts Time
-- Infinite Boosts
++ Added Server Info GroupBox In Server Tab, Features:
+- Players: Players On The Server / Maximum Players
+- PlaceId Label
+- Ping Label
+- Session Time Label
 
-[+] Missions Tab:
-- Auto Unlock Missions
-- Teleport To Missions Center
-- Missions Autofarm
-
-[+] Boats Tab:
-- Buy Kayak
-- Buy Double Kayak
-- Buy Zodiac
-- Teleport To Boats Spawn
-- Spawn Label
-
-[+] Server Tab:
-- Server Hop
-- Join Small Server
-- Rejoin Server
-- Join by JobId
-- Copy JobId
-
-[+] UI Changes:
-- Added Icon To All GroupBoxes
++ Updated Executions Tracker
     ]],
     Search = false,
     NotifyLibrary = "Luna",
