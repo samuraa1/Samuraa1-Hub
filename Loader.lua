@@ -1,6 +1,6 @@
 local Scripts = {
     -- Garden Horizons
-    [130594398886540} = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/GH.lua"
+    [130594398886540] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/GH.lua"
     
     -- Restaurant Tycoon 3
     [119048529960596] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/RT3.lua",
