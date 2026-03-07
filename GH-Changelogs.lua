@@ -3,11 +3,59 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Garden Horizons Script - Changelogs",
     ChangelogText = [[
-        Version: 2.0.3
-+ Rewrited Again Auto Harvest: Some Optimization, Added For All Harvest Features Tooltips, Now If Nothing Selected In Dropdown (In Plants For Example, Then All Plants Will Be Harvested Or If No Mutations Will Be Selected - Then They Will Be Ignored, Same For Variants Dropdown), In Minimum Multiplier Now If You Type 1 - Any Multiplier Will Be Accepted. So Now Auto Harvest Works Perfectly Fine!
+        Version: 2.5.0
+Main Tab:
++ Rewrited Auto Plant - Some Optimization, Added Check If You Have New Seed In Inventory (To Not Restart Auto Plant Toggle), Bug Fixes. So Now Auto Plant Works Perfectly Fine!
++ Added Plant Position Method: Randomized and Custom Set Position
+If Custom Set Position Enabled U Will See:
+- Get Current Position and Custom Position Input
++ Removed Info About Auto Plant Because Now Its Planting Instanly
 
-+ Added Tooltips For Sell Features
-+ Fixed Auto Sell All When Backpack Full
++ Added Auto Water + Many Settings For This Feature
++ Added Auto Sprinkler + Many Settings For This Feature
+
++ Added Tree/Plant Shovel + Many Settings For This Feature
++ Added Fruit Shovel + Many Settings For This Feature
+
+
++ Added 'Backpack' Tab, Features:
++ Sell Feature Now In This Tab + Added Skip Favorited In Specific Mode
+
+- Auto Favorite (auto favorite only plants that in backpack, not that on ur garden)
+- Plants to Favorite
+- Mutations
+
+- Unfavorite Divider
+- Plants to Unfavorite
+- Refresh Lish
+- Unfavorite Selected Plants
+
+
+Shops Tab:
++ Added Tooltips
++ Now Delay Between Buys For 'Auto Buy Seeds' and 'Auto Buy Gears' Default Is 50 ms
++ Rewrited 'Auto Buy Seeds' and 'Auto Buy Gears'
+
+Miscellaneous Features Tab:
++ Added Set AFK Status (FE)
+
++ Redeem All Valid Codes: Removed Expired Codes + Removed Info Label + Added Code - CONSOLE
+
++ Added More Teleports
+
++ Rewrited Always Render Plot - No More Bugs
+
++ Added Auto Refresh Daily Quests
++ Added Auto Refresh Weekly Quests
+
+Server Tab:
++ Added Divider
+
++ Added Info Tab About Visuals and Server Tabs
+
+UI Changes:
++ Fixed Warns In Console About Theme
++ Updated UI Size
     ]],
     Search = false,
     NotifyLibrary = "Luna",
