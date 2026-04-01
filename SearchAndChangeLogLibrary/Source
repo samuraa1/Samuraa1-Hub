@@ -1,0 +1,670 @@
+--[[
+  Search + Changelog dialog (MentalityUI-inspired theme)
+  API-compatible with EnesXVC SearchAndChangelogLibrary — NotifyLibrary "Rayfield"|"Luna"|"Mentality" all use the same Mentality-styled notifications.
+]]
+
+local SearchAndChangelogLibrary = {}
+
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+
+-- Mentality-like palette (Samuraa1 Hub default accents)
+local Theme = {
+	Text = Color3.fromRGB(240, 240, 245),
+	TextMuted = Color3.fromRGB(160, 158, 180),
+	Background = Color3.fromRGB(22, 21, 28),
+	BackgroundElevated = Color3.fromRGB(28, 27, 34),
+	Section = Color3.fromRGB(30, 29, 36),
+	Accent = Color3.fromRGB(90, 165, 255),
+	AccentDeep = Color3.fromRGB(70, 110, 200),
+	Stroke = Color3.fromRGB(55, 52, 65),
+	Shadow = Color3.fromRGB(12, 12, 16),
+	NotificationBg = Color3.fromRGB(22, 21, 28),
+}
+
+local function protectUI(sGui)
+	if not sGui then
+		return
+	end
+	if get_hidden_gui or gethui then
+		local hiddenUI = get_hidden_gui or gethui
+		sGui.Name = "MentalityChangelog_" .. tostring(math.random(10000, 99999))
+		sGui.Parent = hiddenUI()
+	elseif syn and syn.protect_gui then
+		syn.protect_gui(sGui)
+		sGui.Parent = CoreGui
+	else
+		sGui.Parent = CoreGui
+	end
+	return sGui
+end
+
+local function getAssetUri(id)
+	if type(id) == "number" then
+		return "rbxassetid://" .. id
+	end
+	return "rbxassetid://0"
+end
+
+-- Bottom-right notification stack (Mentality-style cards)
+local MentalityNotif = {}
+
+local function CreateMentalityNotifications(parent)
+	local Notifications = Instance.new("Frame")
+	Notifications.Name = "MentalityNotifications"
+	Notifications.Parent = parent
+	Notifications.AnchorPoint = Vector2.new(1, 1)
+	Notifications.BackgroundTransparency = 1
+	Notifications.BorderSizePixel = 0
+	Notifications.Position = UDim2.new(1, -16, 1, -16)
+	Notifications.Size = UDim2.new(0, 300, 0, 800)
+
+	local UIListLayout = Instance.new("UIListLayout")
+	UIListLayout.Parent = Notifications
+	UIListLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+	UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	UIListLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	UIListLayout.Padding = UDim.new(0, 8)
+
+	local Template = Instance.new("Frame")
+	Template.Name = "Template"
+	Template.Parent = Notifications
+	Template.BackgroundColor3 = Theme.NotificationBg
+	Template.BackgroundTransparency = 0.12
+	Template.BorderSizePixel = 0
+	Template.Size = UDim2.new(1, 0, 0, 72)
+	Template.Visible = false
+
+	local UICorner = Instance.new("UICorner")
+	UICorner.CornerRadius = UDim.new(0, 8)
+	UICorner.Parent = Template
+
+	local BgGrad = Instance.new("UIGradient")
+	BgGrad.Rotation = -90
+	BgGrad.Transparency = NumberSequence.new(0.88)
+	BgGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.Accent),
+		ColorSequenceKeypoint.new(1, Theme.AccentDeep),
+	})
+	BgGrad.Parent = Template
+
+	local UIStroke = Instance.new("UIStroke")
+	UIStroke.Name = "UIStroke"
+	UIStroke.Color = Theme.Accent
+	UIStroke.Transparency = 0.35
+	UIStroke.Thickness = 1
+	UIStroke.Parent = Template
+
+	local Icon = Instance.new("ImageLabel")
+	Icon.Name = "Icon"
+	Icon.Parent = Template
+	Icon.AnchorPoint = Vector2.new(0, 0.5)
+	Icon.BackgroundTransparency = 1
+	Icon.BorderSizePixel = 0
+	Icon.Position = UDim2.new(0, 12, 0.5, 0)
+	Icon.Size = UDim2.new(0, 26, 0, 26)
+	Icon.Image = "rbxassetid://0"
+	Icon.ImageColor3 = Theme.Accent
+
+	local Title = Instance.new("TextLabel")
+	Title.Name = "Title"
+	Title.Parent = Template
+	Title.BackgroundTransparency = 1
+	Title.Position = UDim2.new(0, 46, 0, 10)
+	Title.Size = UDim2.new(1, -58, 0, 18)
+	Title.ZIndex = 2
+	Title.Font = Enum.Font.GothamMedium
+	Title.Text = "Title"
+	Title.TextColor3 = Theme.Text
+	Title.TextSize = 14
+	Title.TextXAlignment = Enum.TextXAlignment.Left
+	Title.TextTruncate = Enum.TextTruncate.AtEnd
+
+	local Description = Instance.new("TextLabel")
+	Description.Name = "Description"
+	Description.Parent = Template
+	Description.BackgroundTransparency = 1
+	Description.Position = UDim2.new(0, 46, 0, 30)
+	Description.Size = UDim2.new(1, -58, 1, -38)
+	Description.ZIndex = 2
+	Description.Font = Enum.Font.Gotham
+	Description.Text = "Content"
+	Description.TextColor3 = Theme.TextMuted
+	Description.TextSize = 13
+	Description.TextWrapped = true
+	Description.TextXAlignment = Enum.TextXAlignment.Left
+	Description.TextYAlignment = Enum.TextYAlignment.Top
+
+	return Notifications, Template, UIListLayout
+end
+
+function MentalityNotif:Notify(data, notifFrame, template, layout)
+	task.spawn(function()
+		local newNotification = template:Clone()
+		newNotification.Name = data.Title or "Notice"
+		newNotification.Parent = notifFrame
+		newNotification.LayoutOrder = #notifFrame:GetChildren()
+		newNotification.Visible = false
+
+		newNotification.Title.Text = data.Title or "Notice"
+		newNotification.Description.Text = data.Content or ""
+
+		if data.Image then
+			newNotification.Icon.Image = getAssetUri(data.Image)
+		else
+			newNotification.Icon.Image = "rbxassetid://0"
+		end
+
+		newNotification.BackgroundTransparency = 1
+		newNotification.Title.TextTransparency = 1
+		newNotification.Description.TextTransparency = 1
+		newNotification.UIStroke.Transparency = 1
+		newNotification.Icon.ImageTransparency = 1
+
+		task.wait()
+
+		newNotification.Visible = true
+
+		local boundsY = newNotification.Title.TextBounds.Y + newNotification.Description.TextBounds.Y
+		local h = math.max(boundsY + 24, 56)
+
+		newNotification.Icon.Size = UDim2.new(0, 28, 0, 28)
+		newNotification.Icon.Position = UDim2.new(0, 12, 0.5, 0)
+
+		TweenService:Create(newNotification, TweenInfo.new(0.45, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Size = UDim2.new(1, 0, 0, h),
+		}):Play()
+
+		task.wait(0.08)
+		TweenService:Create(newNotification, TweenInfo.new(0.25, Enum.EasingStyle.Quint), { BackgroundTransparency = 0.12 }):Play()
+		TweenService:Create(newNotification.Title, TweenInfo.new(0.22, Enum.EasingStyle.Quint), { TextTransparency = 0 }):Play()
+		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.28, Enum.EasingStyle.Quint), { Transparency = 0.35 }):Play()
+		task.wait(0.04)
+		TweenService:Create(newNotification.Icon, TweenInfo.new(0.22, Enum.EasingStyle.Quint), { ImageTransparency = 0 }):Play()
+		task.wait(0.04)
+		TweenService:Create(newNotification.Description, TweenInfo.new(0.22, Enum.EasingStyle.Quint), { TextTransparency = 0.1 }):Play()
+
+		local waitDuration = math.clamp((#newNotification.Description.Text * 0.08) + 2.2, 2.5, 12)
+		task.wait(data.Duration or waitDuration)
+
+		TweenService:Create(newNotification, TweenInfo.new(0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.In), { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(newNotification.UIStroke, TweenInfo.new(0.3, Enum.EasingStyle.Quint), { Transparency = 1 }):Play()
+		TweenService:Create(newNotification.Title, TweenInfo.new(0.25, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
+		TweenService:Create(newNotification.Description, TweenInfo.new(0.25, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
+		TweenService:Create(newNotification.Icon, TweenInfo.new(0.25, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
+
+		task.wait(0.35)
+		newNotification:Destroy()
+	end)
+end
+
+function SearchAndChangelogLibrary:Notify(data)
+	if self.MentalityNotifFrame then
+		MentalityNotif:Notify(data, self.MentalityNotifFrame, self.MentalityTemplate, self.MentalityLayout)
+	end
+end
+
+function SearchAndChangelogLibrary:CreateChangelogDialog(config)
+	local changelogText = type(config) == "string" and config or (type(config) == "table" and config.ChangelogText or "")
+	local showSearchBar = type(config) == "table" and config.Search ~= false
+	local dialogTitle = type(config) == "table" and config.Title or "Changelog"
+	local notificationsEnabled = type(config) == "table" and config.Notifications ~= false
+	local altButton = type(config) == "table" and config.Altbutton or { Name = "Join Discord", Clipboard = "discord.gg/rTw5M8dRXN" }
+	local notification = type(config) == "table" and config.Notification or { Title = "Changelog Closed", Content = "The changelog has been closed", Duration = 2.5, Image = 10723346871 }
+	local altButtonNotification = type(config) == "table" and config.AltbuttonNotification or {
+		Success = { Title = "Copied", Content = "The link has been copied to your clipboard!", Duration = 6.5, Image = 10709798443 },
+		Failure = { Title = "Failed", Content = "Your executor doesn't support setclipboard.", Duration = 6.5, Image = 10709799124 },
+	}
+
+	self.NotifyLibrary = type(config) == "table" and config.NotifyLibrary or "Mentality"
+
+	if changelogText == "" then
+		changelogText = [[
+Version: Build 1.0
+Release Date: ???
+
+What's New
+???
+
+Improvements
+???
+
+Bug Fixes
+???
+
+Known Issues
+???
+
+Notes
+???
+]]
+	end
+
+	local Main = Instance.new("ScreenGui")
+	Main.IgnoreGuiInset = true
+	protectUI(Main)
+
+	self.MentalityNotifFrame, self.MentalityTemplate, self.MentalityLayout = CreateMentalityNotifications(Main)
+
+	local ChangelogDialog = Instance.new("Frame")
+	ChangelogDialog.Name = "ChangelogDialog"
+	ChangelogDialog.Active = true
+	local cam = workspace.CurrentCamera
+	local screenSize = cam and cam.ViewportSize or Vector2.new(1920, 1080)
+	local minSize = Vector2.new(500, 400)
+	local isMobile = UserInputService.TouchEnabled or (screenSize.X < minSize.X and screenSize.Y < minSize.Y)
+	local dialogWidth = isMobile and math.clamp(screenSize.X * 0.88, 260, 460) or math.clamp(screenSize.X * 0.42, 420, 560)
+	local dialogHeight = isMobile and math.clamp(screenSize.Y * 0.62, 320, 580) or math.clamp(screenSize.Y * 0.62, 420, 620)
+
+	ChangelogDialog.Size = UDim2.new(0, dialogWidth, 0, dialogHeight)
+	ChangelogDialog.Position = UDim2.new(0.5, 0, 0, isMobile and 36 or 56)
+	ChangelogDialog.AnchorPoint = Vector2.new(0.5, 0)
+	ChangelogDialog.BackgroundColor3 = Theme.Background
+	ChangelogDialog.BorderSizePixel = 0
+	ChangelogDialog.ZIndex = 100
+	ChangelogDialog.Visible = false
+	ChangelogDialog.Parent = Main
+
+	local DialogCorner = Instance.new("UICorner")
+	DialogCorner.CornerRadius = UDim.new(0, 10)
+	DialogCorner.Parent = ChangelogDialog
+
+	local DialogStroke = Instance.new("UIStroke")
+	DialogStroke.Color = Theme.Accent
+	DialogStroke.Thickness = 1
+	DialogStroke.Transparency = 0.45
+	DialogStroke.Parent = ChangelogDialog
+
+	local TopAccent = Instance.new("Frame")
+	TopAccent.Name = "TopAccent"
+	TopAccent.Size = UDim2.new(1, 0, 0, 3)
+	TopAccent.BackgroundColor3 = Theme.Accent
+	TopAccent.BorderSizePixel = 0
+	TopAccent.ZIndex = 102
+	TopAccent.Parent = ChangelogDialog
+	local TopGrad = Instance.new("UIGradient")
+	TopGrad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0, Theme.Accent),
+		ColorSequenceKeypoint.new(1, Theme.AccentDeep),
+	})
+	TopGrad.Rotation = 0
+	TopGrad.Parent = TopAccent
+	local TopCorner = Instance.new("UICorner")
+	TopCorner.CornerRadius = UDim.new(0, 10)
+	TopCorner.Parent = TopAccent
+
+	local DialogShadow = Instance.new("ImageLabel")
+	DialogShadow.Name = "Shadow"
+	DialogShadow.Image = "rbxassetid://1316045217"
+	DialogShadow.Size = UDim2.new(1, 28, 1, 28)
+	DialogShadow.Position = UDim2.new(0, -14, 0, -14)
+	DialogShadow.BackgroundTransparency = 1
+	DialogShadow.ImageTransparency = 0.55
+	DialogShadow.ImageColor3 = Theme.Shadow
+	DialogShadow.ScaleType = Enum.ScaleType.Slice
+	DialogShadow.SliceCenter = Rect.new(10, 10, 118, 118)
+	DialogShadow.ZIndex = 99
+	DialogShadow.Parent = ChangelogDialog
+
+	local DialogTitle = Instance.new("TextLabel")
+	DialogTitle.Name = "Title"
+	DialogTitle.Size = UDim2.new(1, -24, 0, 36)
+	DialogTitle.Position = UDim2.new(0, 14, 0, 14)
+	DialogTitle.BackgroundTransparency = 1
+	DialogTitle.Text = dialogTitle
+	DialogTitle.TextColor3 = Theme.Text
+	DialogTitle.TextSize = isMobile and 20 or 22
+	DialogTitle.Font = Enum.Font.GothamBold
+	DialogTitle.TextXAlignment = Enum.TextXAlignment.Left
+	DialogTitle.ZIndex = 101
+	DialogTitle.Parent = ChangelogDialog
+
+	local SearchBar, SearchStroke, SearchIcon, SearchInput
+	if showSearchBar then
+		SearchBar = Instance.new("Frame")
+		SearchBar.Name = "Search"
+		SearchBar.Size = UDim2.new(1, -24, 0, isMobile and 34 or 38)
+		SearchBar.Position = UDim2.new(0, 12, 0, 54)
+		SearchBar.BackgroundColor3 = Theme.Section
+		SearchBar.BackgroundTransparency = 0.15
+		SearchBar.ZIndex = 101
+		SearchBar.Parent = ChangelogDialog
+
+		local SearchCorner = Instance.new("UICorner")
+		SearchCorner.CornerRadius = UDim.new(0, 8)
+		SearchCorner.Parent = SearchBar
+
+		SearchStroke = Instance.new("UIStroke")
+		SearchStroke.Color = Theme.Accent
+		SearchStroke.Thickness = 1
+		SearchStroke.Transparency = 0.65
+		SearchStroke.Parent = SearchBar
+
+		SearchIcon = Instance.new("ImageLabel")
+		SearchIcon.Name = "SearchIcon"
+		SearchIcon.Image = "rbxassetid://10734943674"
+		SearchIcon.ImageColor3 = Theme.Accent
+		SearchIcon.ImageTransparency = 0.25
+		SearchIcon.BackgroundTransparency = 1
+		SearchIcon.Size = UDim2.new(0, isMobile and 18 or 20, 0, isMobile and 18 or 20)
+		SearchIcon.Position = UDim2.new(0, 10, 0.5, isMobile and -9 or -10)
+		SearchIcon.ZIndex = 102
+		SearchIcon.Parent = SearchBar
+
+		SearchInput = Instance.new("TextBox")
+		SearchInput.Name = "Input"
+		SearchInput.Text = ""
+		SearchInput.PlaceholderText = "Search…"
+		SearchInput.PlaceholderColor3 = Theme.TextMuted
+		SearchInput.TextColor3 = Theme.Text
+		SearchInput.TextTransparency = 0.05
+		SearchInput.TextSize = isMobile and 14 or 15
+		SearchInput.Font = Enum.Font.Gotham
+		SearchInput.BackgroundTransparency = 1
+		SearchInput.Size = UDim2.new(1, -44, 1, 0)
+		SearchInput.Position = UDim2.new(0, 38, 0, 0)
+		SearchInput.TextXAlignment = Enum.TextXAlignment.Left
+		SearchInput.ZIndex = 102
+		SearchInput.Parent = SearchBar
+	end
+
+	local ChangelogScroll = Instance.new("ScrollingFrame")
+	ChangelogScroll.Name = "ChangelogScroll"
+	ChangelogScroll.Size = UDim2.new(1, -24, 1, isMobile and (showSearchBar and -132 or -96) or (showSearchBar and -148 or -112))
+	ChangelogScroll.Position = UDim2.new(0, 12, 0, isMobile and (showSearchBar and 96 or 58) or (showSearchBar and 102 or 58))
+	ChangelogScroll.BackgroundTransparency = 1
+	ChangelogScroll.ScrollBarThickness = isMobile and 4 or 5
+	ChangelogScroll.ScrollBarImageColor3 = Theme.Accent
+	ChangelogScroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+	ChangelogScroll.ZIndex = 101
+	ChangelogScroll.Parent = ChangelogDialog
+
+	local ScrollListLayout = Instance.new("UIListLayout")
+	ScrollListLayout.Padding = UDim.new(0, 6)
+	ScrollListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+	ScrollListLayout.Parent = ChangelogScroll
+
+	local function addTextLabel(text, isHeader, layoutOrder)
+		local TextLabel = Instance.new("TextLabel")
+		TextLabel.Size = UDim2.new(1, -8, 0, 0)
+		TextLabel.AutomaticSize = Enum.AutomaticSize.Y
+		TextLabel.BackgroundTransparency = 1
+		TextLabel.Text = text
+		TextLabel.TextColor3 = Theme.Text
+		TextLabel.TextTransparency = 0
+		TextLabel.TextSize = isMobile and (isHeader and 17 or 15) or (isHeader and 19 or 16)
+		TextLabel.Font = isHeader and Enum.Font.GothamMedium or Enum.Font.Gotham
+		TextLabel.TextXAlignment = Enum.TextXAlignment.Left
+		TextLabel.TextWrapped = true
+		TextLabel.LayoutOrder = layoutOrder
+		TextLabel.ZIndex = 102
+
+		if isHeader
+			and (
+				text:match("^%[%+%]")
+				or text:match("^%[%-%]")
+				or text:match("^%[%*%]")
+				or text:match("^%[!%]")
+				or text:match("^%[%?%]")
+			)
+		then
+			TextLabel.BackgroundTransparency = 0.2
+			TextLabel.BackgroundColor3 = Theme.Section
+			local HighlightCorner = Instance.new("UICorner")
+			HighlightCorner.CornerRadius = UDim.new(0, 6)
+			HighlightCorner.Parent = TextLabel
+			local hs = Instance.new("UIStroke")
+			hs.Color = Theme.Accent
+			hs.Transparency = 0.7
+			hs.Thickness = 1
+			hs.Parent = TextLabel
+		end
+
+		TextLabel.Parent = ChangelogScroll
+		return TextLabel
+	end
+
+	local originalLabels = {}
+	local layoutOrder = 0
+	for line in changelogText:gmatch("[^\r\n]+") do
+		line = line:match("^%s*(.-)%s*$")
+		local isHeader = line:match("^%[%+%]")
+			or line:match("^%[%-%]")
+			or line:match("^%[%*%]")
+			or line:match("^%[!%]")
+			or line:match("^%[%?%]")
+			or line:match("^Version:")
+			or line:match("^Release Date:")
+			or line:match("^What's New")
+			or line:match("^Improvements")
+			or line:match("^Bug Fixes")
+			or line:match("^Known Issues")
+			or line:match("^Notes")
+		addTextLabel(line, isHeader, layoutOrder)
+		table.insert(originalLabels, { text = line, isHeader = isHeader, layoutOrder = layoutOrder })
+		layoutOrder = layoutOrder + 1
+	end
+
+	ScrollListLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+		ChangelogScroll.CanvasSize = UDim2.new(0, 0, 0, ScrollListLayout.AbsoluteContentSize.Y + 8)
+	end)
+
+	if showSearchBar then
+		SearchInput:GetPropertyChangedSignal("Text"):Connect(function()
+			local query = SearchInput.Text:lower()
+			for _, label in ipairs(ChangelogScroll:GetChildren()) do
+				if label:IsA("TextLabel") then
+					label:Destroy()
+				end
+			end
+			local newLayoutOrder = 0
+			if query == "" then
+				for _, entry in ipairs(originalLabels) do
+					addTextLabel(entry.text, entry.isHeader, newLayoutOrder)
+					newLayoutOrder = newLayoutOrder + 1
+				end
+			else
+				for _, entry in ipairs(originalLabels) do
+					if entry.text:lower():find(query, 1, true) then
+						addTextLabel(entry.text, entry.isHeader, newLayoutOrder)
+						newLayoutOrder = newLayoutOrder + 1
+					end
+				end
+			end
+		end)
+	end
+
+	local function stylePrimaryButton(btn, stroke)
+		btn.BackgroundColor3 = Theme.Section
+		btn.TextColor3 = Theme.Text
+		btn.Font = Enum.Font.GothamMedium
+		btn.MouseEnter:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quint), { BackgroundColor3 = Theme.BackgroundElevated }):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Quint), { Transparency = 0.35 }):Play()
+		end)
+		btn.MouseLeave:Connect(function()
+			TweenService:Create(btn, TweenInfo.new(0.2, Enum.EasingStyle.Quint), { BackgroundColor3 = Theme.Section }):Play()
+			TweenService:Create(stroke, TweenInfo.new(0.2, Enum.EasingStyle.Quint), { Transparency = 0.55 }):Play()
+		end)
+	end
+
+	local CloseButton = Instance.new("TextButton")
+	CloseButton.Name = "CloseButton"
+	CloseButton.Size = UDim2.new(0, isMobile and 72 or 88, 0, isMobile and 30 or 34)
+	CloseButton.Position = UDim2.new(1, isMobile and -84 or -100, 1, isMobile and -40 or -44)
+	CloseButton.BackgroundTransparency = 0
+	CloseButton.Text = "Close"
+	CloseButton.TextSize = isMobile and 15 or 16
+	CloseButton.ZIndex = 101
+	CloseButton.Parent = ChangelogDialog
+	local CloseCorner = Instance.new("UICorner")
+	CloseCorner.CornerRadius = UDim.new(0, 8)
+	CloseCorner.Parent = CloseButton
+	local CloseStroke = Instance.new("UIStroke")
+	CloseStroke.Color = Theme.Accent
+	CloseStroke.Thickness = 1
+	CloseStroke.Transparency = 0.55
+	CloseStroke.Parent = CloseButton
+	stylePrimaryButton(CloseButton, CloseStroke)
+
+	local AltButton = Instance.new("TextButton")
+	AltButton.Name = "AltButton"
+	AltButton.Size = UDim2.new(0, isMobile and 118 or 132, 0, isMobile and 30 or 34)
+	AltButton.Position = UDim2.new(0, 12, 1, isMobile and -40 or -44)
+	AltButton.Text = altButton.Name
+	AltButton.TextSize = isMobile and 15 or 16
+	AltButton.ZIndex = 101
+	AltButton.Parent = ChangelogDialog
+	local AltCorner = Instance.new("UICorner")
+	AltCorner.CornerRadius = UDim.new(0, 8)
+	AltCorner.Parent = AltButton
+	local AltStroke = Instance.new("UIStroke")
+	AltStroke.Color = Theme.Accent
+	AltStroke.Thickness = 1
+	AltStroke.Transparency = 0.55
+	AltStroke.Parent = AltButton
+	stylePrimaryButton(AltButton, AltStroke)
+
+	AltButton.MouseButton1Click:Connect(function()
+		if setclipboard then
+			setclipboard(altButton.Clipboard)
+			if notificationsEnabled then
+				self:Notify(altButtonNotification.Success)
+			end
+		else
+			if notificationsEnabled then
+				self:Notify(altButtonNotification.Failure)
+			end
+		end
+	end)
+
+	local function showDialog()
+		ChangelogDialog.Visible = true
+		ChangelogDialog.Size = UDim2.new(0, 0, 0, 0)
+		DialogShadow.ImageTransparency = 1
+		DialogTitle.TextTransparency = 1
+		CloseButton.TextTransparency = 1
+		CloseButton.BackgroundTransparency = 1
+		CloseStroke.Transparency = 1
+		AltButton.TextTransparency = 1
+		AltButton.BackgroundTransparency = 1
+		AltStroke.Transparency = 1
+		TopAccent.BackgroundTransparency = 1
+
+		if showSearchBar then
+			SearchBar.BackgroundTransparency = 1
+			SearchStroke.Transparency = 1
+			SearchIcon.ImageTransparency = 1
+			SearchInput.TextTransparency = 1
+		end
+
+		TweenService:Create(ChangelogDialog, TweenInfo.new(0.48, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), {
+			Size = UDim2.new(0, dialogWidth, 0, dialogHeight),
+		}):Play()
+		TweenService:Create(DialogShadow, TweenInfo.new(0.48, Enum.EasingStyle.Quint), { ImageTransparency = 0.55 }):Play()
+		TweenService:Create(DialogTitle, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { TextTransparency = 0 }):Play()
+		TweenService:Create(TopAccent, TweenInfo.new(0.35, Enum.EasingStyle.Quint), { BackgroundTransparency = 0 }):Play()
+		TweenService:Create(CloseButton, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { TextTransparency = 0, BackgroundTransparency = 0.15 }):Play()
+		TweenService:Create(CloseStroke, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { Transparency = 0.55 }):Play()
+		TweenService:Create(AltButton, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { TextTransparency = 0, BackgroundTransparency = 0.15 }):Play()
+		TweenService:Create(AltStroke, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { Transparency = 0.55 }):Play()
+
+		if showSearchBar then
+			TweenService:Create(SearchBar, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { BackgroundTransparency = 0.15 }):Play()
+			TweenService:Create(SearchStroke, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { Transparency = 0.65 }):Play()
+			TweenService:Create(SearchIcon, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { ImageTransparency = 0.25 }):Play()
+			TweenService:Create(SearchInput, TweenInfo.new(0.45, Enum.EasingStyle.Quint), { TextTransparency = 0.05 }):Play()
+		end
+
+		for _, label in ipairs(ChangelogScroll:GetChildren()) do
+			if label:IsA("TextLabel") then
+				label.TextTransparency = 1
+				TweenService:Create(label, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { TextTransparency = 0 }):Play()
+				task.wait(0.015)
+			end
+		end
+	end
+
+	local function hideDialog()
+		TweenService:Create(ChangelogDialog, TweenInfo.new(0.42, Enum.EasingStyle.Quint, Enum.EasingDirection.In), {
+			Size = UDim2.new(0, 0, 0, 0),
+			BackgroundTransparency = 1,
+		}):Play()
+		TweenService:Create(DialogShadow, TweenInfo.new(0.42, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
+		TweenService:Create(DialogTitle, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
+		TweenService:Create(TopAccent, TweenInfo.new(0.35, Enum.EasingStyle.Quint), { BackgroundTransparency = 1 }):Play()
+		TweenService:Create(CloseButton, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
+		TweenService:Create(CloseStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { Transparency = 1 }):Play()
+		TweenService:Create(AltButton, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { TextTransparency = 1, BackgroundTransparency = 1 }):Play()
+		TweenService:Create(AltStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { Transparency = 1 }):Play()
+
+		if showSearchBar then
+			TweenService:Create(SearchBar, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { BackgroundTransparency = 1 }):Play()
+			TweenService:Create(SearchStroke, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { Transparency = 1 }):Play()
+			TweenService:Create(SearchIcon, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { ImageTransparency = 1 }):Play()
+			TweenService:Create(SearchInput, TweenInfo.new(0.4, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
+		end
+
+		for _, label in ipairs(ChangelogScroll:GetChildren()) do
+			if label:IsA("TextLabel") then
+				TweenService:Create(label, TweenInfo.new(0.38, Enum.EasingStyle.Quint), { TextTransparency = 1 }):Play()
+			end
+		end
+
+		task.wait(0.45)
+		Main:Destroy()
+
+		if notificationsEnabled then
+			self:Notify(notification)
+		end
+	end
+
+	CloseButton.MouseButton1Click:Connect(hideDialog)
+
+	local dragging, dragInput, dragStart, startPos
+	local function update(input)
+		local delta = input.Position - dragStart
+		ChangelogDialog.Position = UDim2.new(
+			startPos.X.Scale,
+			startPos.X.Offset + delta.X,
+			startPos.Y.Scale,
+			startPos.Y.Offset + delta.Y
+		)
+	end
+
+	ChangelogDialog.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = ChangelogDialog.Position
+			input.Changed:Connect(function()
+				if input.UserInputState == Enum.UserInputState.End then
+					dragging = false
+				end
+			end)
+		end
+	end)
+
+	ChangelogDialog.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			update(input)
+		end
+	end)
+
+	showDialog()
+
+	return {
+		Hide = hideDialog,
+		Show = showDialog,
+	}
+end
+
+return SearchAndChangelogLibrary
