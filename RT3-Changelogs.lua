@@ -3,19 +3,41 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "Restaurant Tycoon 3 Script - Changelogs",
     ChangelogText = [[
-        Version: 1.5.1
-        + Updated Feedback
+        Version: 2.0.0
+        Main Tab:
++ Removed Home & Info Sections
++ New Codes: easter2026 + UltrawEats
++ New Tab Below Main: Events (Easter Eggs + Ghost Hunt Moved There)
++ Teleport To Campsite Still Here
++ Auto Calm Rude Customer Toggle
 
-+ Added Logo
-+ Updated Footer
-+ Updated UI Size
-+ Added Compact Mode For Sidebar
+Events Tab:
++ Collect All Easter Eggs (16 Eggs) One Button
++ Scavenger Hunt Ghosts Here Now
 
-+ Added Server Info GroupBox In Server Tab, Features:
-- Players: Players On The Server / Maximum Players
-- PlaceId Label
-- Ping Label
-- Session Time Label
+Misc Tab:
++ Only FPS Cap Slider (Changelogs & Boost FPS — Use Dashboard)
++ More Functions Soon Label
+
+Local Player Tab:
++ Rewrited Anti AFK & Fly
+
+Visuals Tab:
++ Added In Brackets / Notes For Infinite Cash, Rebirth, Diamonds & Leaderstats Stuff
++ Rewrited Fullbright + Ambient
++ Added World Stuff (Day / Night, X-Ray)
++ Added Full ESP (Box, Tracers, Names, Distance) + Chams + No Shadows
++ Removed Old Button Spam — Now Mostly Toggles Like Raft
+
+Server Tab:
++ Added Divider
++ Server Info Shows FPS + Cleaner Labels
++ Optimized All Features
+
+UI Changes:
++ Whole Script On Mentality UI (New Look)
++ Updated Feedback Send Flow
++ Fixed Random Spam / Duplicate Stuff In Settings
     ]],
     Search = false,
     NotifyLibrary = "Luna",
