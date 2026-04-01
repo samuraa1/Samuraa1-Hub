@@ -1,16 +1,9 @@
---[[
-  Samuraa1 Hub — Boost FPS (max preset)
-  Override: set _G.Settings before this file runs, or edit the table below.
-  Loader: https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/FPSBooster.lua
-]]
-
 local UserInputService = game:GetService("UserInputService")
 local touch = UserInputService.TouchEnabled
 local gamepad = UserInputService.GamepadEnabled
-
--- Slightly softer text-mesh work on pure touch to reduce hitching on low-end phones
+------------------------------------------------------------------------------
 local softTouch = touch and not UserInputService.KeyboardEnabled
-
+------------------------------------------------------------------------------
 _G.Settings = {
 	Players = {
 		["Ignore Me"] = true,
@@ -61,13 +54,13 @@ _G.Settings = {
 		ClearNilInstances = not touch,
 	},
 }
-
+------------------------------------------------------------------------------
 _G.LoadedWait = softTouch and 0.18 or 0.1
 _G.UseFPSCustomToasts = true
 _G.SendNotifications = true
-
+------------------------------------------------------------------------------
 if gamepad and touch then
 	_G.Settings.Other["No Clothes"] = false
 end
-
+------------------------------------------------------------------------------
 loadstring(game:HttpGet("https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/FPSBooster.lua"))()
