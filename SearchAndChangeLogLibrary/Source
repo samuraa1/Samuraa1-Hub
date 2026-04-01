@@ -1,8 +1,3 @@
---[[
-  Search + Changelog dialog (MentalityUI-inspired theme)
-  API-compatible with EnesXVC SearchAndChangelogLibrary — NotifyLibrary "Rayfield"|"Luna"|"Mentality" all use the same Mentality-styled notifications.
-]]
-
 local SearchAndChangelogLibrary = {}
 
 local TweenService = game:GetService("TweenService")
