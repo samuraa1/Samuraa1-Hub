@@ -1,8 +1,3 @@
---[[
-  Samuraa1 Hub — FPS Booster (based on Rip Hub / community optimizations)
-  Custom bottom-right toasts (Mentality-style), no Roblox core notifications.
-]]
-
 if not _G.Ignore then
 	_G.Ignore = {}
 end
