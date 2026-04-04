@@ -1,8 +1,3 @@
---[[
-  Samuraa1 Hub — FPS Booster (based on Rip Hub / community optimizations)
-  Custom bottom-right toasts (Mentality-style), no Roblox core notifications.
-]]
-
 if not _G.Ignore then
 	_G.Ignore = {}
 end
@@ -71,7 +66,6 @@ local CanBeEnabled = { "ParticleEmitter", "Trail", "Smoke", "Fire", "Sparkles" }
 local isTouch = UserInputService.TouchEnabled
 local descendantDebounce = math.clamp(tonumber(_G.LoadedWait) or 0.12, 0.05, 0.5)
 
--- ——— Custom toasts (bottom-right, Mentality-like) ———
 local FPSNotify = {}
 do
 	local gui, holder, seq = nil, nil, 0
@@ -445,7 +439,6 @@ local function CheckIfBad(Inst)
 	end
 end
 
--- ——— Environment passes (water, shadows, rendering, materials, fps cap, nil instances) ———
 notify("FPS Booster", "Loading…", 2.5)
 
 task.defer(function()
