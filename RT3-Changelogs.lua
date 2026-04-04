@@ -4,40 +4,16 @@ Library:CreateChangelogDialog({
     Title = "Restaurant Tycoon 3 Script - Changelogs",
     ChangelogText = [[
         Version: 2.0.0
-        Main Tab:
-+ Removed Home & Info Sections
-+ New Codes: easter2026 + UltrawEats
-+ New Tab Below Main: Events (Easter Eggs + Ghost Hunt Moved There)
-+ Teleport To Campsite Still Here
-+ Auto Calm Rude Customer Toggle
+        + Added Tooltips
 
-Events Tab:
-+ Collect All Easter Eggs (16 Eggs) One Button
-+ Scavenger Hunt Ghosts Here Now
++ All Auto Farms Is Way Faster Now + Many Optimizations
++ Added Divider In Restaurant Section
 
-Misc Tab:
-+ Only FPS Cap Slider (Changelogs & Boost FPS — Use Dashboard)
-+ More Functions Soon Label
++ Added Code diva In 'Redeem All Valid Codes', Removed Code easter2026
 
-Local Player Tab:
-+ Rewrited Anti AFK & Fly
++ Added Auto Buy Ingredients
 
-Visuals Tab:
-+ Added In Brackets / Notes For Infinite Cash, Rebirth, Diamonds & Leaderstats Stuff
-+ Rewrited Fullbright + Ambient
-+ Added World Stuff (Day / Night, X-Ray)
-+ Added Full ESP (Box, Tracers, Names, Distance) + Chams + No Shadows
-+ Removed Old Button Spam — Now Mostly Toggles Like Raft
-
-Server Tab:
-+ Added Divider
-+ Server Info Shows FPS + Cleaner Labels
-+ Optimized All Features
-
-UI Changes:
-+ Whole Script On Mentality UI (New Look)
-+ Updated Feedback Send Flow
-+ Fixed Random Spam / Duplicate Stuff In Settings
++ Added Music Section In Misc Tab
     ]],
     Search = false,
     NotifyLibrary = "Luna",
