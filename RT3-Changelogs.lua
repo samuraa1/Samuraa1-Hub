@@ -4,16 +4,12 @@ Library:CreateChangelogDialog({
     Title = "Restaurant Tycoon 3 Script - Changelogs",
     ChangelogText = [[
         Version: 2.0.0
-        + Added Tooltips
+        + Added Shops Tab, Features:
+- Auto Buy Ingredients For Fishmonger, Bakery, Supermarket, Butcher Shop
+- Teleports
+and etc.
 
-+ All Auto Farms Is Way Faster Now + Many Optimizations
-+ Added Divider In Restaurant Section
-
-+ Added Code diva In 'Redeem All Valid Codes', Removed Code easter2026
-
-+ Added Auto Buy Ingredients
-
-+ Added Music Section In Misc Tab
++ Removed Box ESP, Tracers, Name, Distance (Useless In RT3)
     ]],
     Search = false,
     NotifyLibrary = "Luna",
