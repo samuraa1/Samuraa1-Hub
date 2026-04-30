@@ -20,6 +20,9 @@ local Scripts = {
     [5187473975] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/TD.lua",
     [5187824911] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/TD.lua",
 
+    -- Humanlife 3: Civilization
+    [133115820245903] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/Humanlife3-Civilization.lua",
+
     -- Maze Simulator
     [109644231059364] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/Maze-Simulator.lua",
 
