@@ -43,9 +43,9 @@ local Scripts = {
     [18281211268] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/MPT.lua",
 }
 
-local ScriptURL = Scripts[game.PlaceId]
-if ScriptURL then
-    loadstring(game:HttpGet(ScriptURL))()
+local Scripturl = Scripts[game.PlaceId]
+if Scripturl then
+    loadstring(game:HttpGet(Scripturl))()
 else
     setclipboard('https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/Supported-Games')
     game.Players.LocalPlayer:Kick("Samuraa1 Hub | This game is not supported. Copied to clipboard link with supported games")
