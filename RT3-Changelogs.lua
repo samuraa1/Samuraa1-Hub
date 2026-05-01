@@ -4,16 +4,11 @@ Library:CreateChangelogDialog({
     Title = "Restaurant Tycoon 3 Script - Changelogs",
     ChangelogText = [[
         Version: 2.0.0
-        + Faster Autofarms + Optimizations
+        + Many Optimizations & Improves For All Autofarms
 
-+ Removed Change Workers WalkSpeed
++ Added Code dineanddash In 'Redeem All Valid Codes', Removed Code star2
 
-+ Some Changes For Auto Claim Daily Reward
-
-+ Added Code star2 In 'Redeem All Valid Codes', Removed Code diva
-
-+ Updated Feedback Webhook
-+ Updated Events Tab
++ Added Security Upgrade
     ]],
     Search = false,
     NotifyLibrary = "Luna",
