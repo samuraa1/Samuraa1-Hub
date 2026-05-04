@@ -2,8 +2,8 @@ local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesX
 Library:CreateChangelogDialog({
     Title = "The Dropper Script - Changelogs",
     ChangelogText = [[
-        Version: 1.0.5
-        + Updated Feedback
+        Version: 2.0.0
+        + New UI and etc.
     ]],
     Search = false,
     NotifyLibrary = "Luna",
