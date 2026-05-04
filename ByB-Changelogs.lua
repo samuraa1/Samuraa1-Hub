@@ -1,15 +1,10 @@
-local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesXVC/librarys/main/SearchAndChangeLogLibrary/Source'))()
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/SearchAndChangeLogLibrary/Source'))()
 
 Library:CreateChangelogDialog({
     Title = "Break your Bones Script - Changelogs",
     ChangelogText = [[
-        Version: 1.3.6
-        + Added Logo
-+ Updated Footer
-+ Updated UI Size
-
-+ Added Label In Visuals Tab
-+ ESP GroupBox Is Right GroupBox Now
+        Version: 2.0.0
+        + New UI and etc.
     ]],
     Search = false,
     NotifyLibrary = "Luna",
