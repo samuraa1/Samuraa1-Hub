@@ -33,14 +33,6 @@ local Scripts = {
 
     -- No Jumping Obby
     [17321628486] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/No-Jumping-Obby.lua",
-
-    -- The $1,000,000 Glass Bridge
-    [87854376962069] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/The1000000GlassBridge.lua",
-
-    -- Mega Princess Tycoon
-    [14448027693] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/MPT.lua",
-    [15247657190] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/MPT.lua",
-    [18281211268] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/MPT.lua",
 }
 
 local Scripturl = Scripts[game.PlaceId]
