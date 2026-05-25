@@ -1,7 +1,4 @@
 local Scripts = {
-    -- Garden Horizons
-    [130594398886540] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/GH.lua",
-    
     -- Restaurant Tycoon 3
     [119048529960596] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/RT3.lua",
     [99889627739043]  = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/RT3.lua",
@@ -22,9 +19,6 @@ local Scripts = {
 
     -- Humanlife 3: Civilization
     [133115820245903] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/Humanlife3-Civilization.lua",
-
-    -- Maze Simulator
-    [109644231059364] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/Maze-Simulator.lua",
 
     -- IQ Test
     [11782774748]     = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/IQ-Test.lua",
