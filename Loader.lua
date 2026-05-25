@@ -20,11 +20,6 @@ local Scripts = {
     -- Humanlife 3: Civilization
     [133115820245903] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/Humanlife3-Civilization.lua",
 
-    -- IQ Test
-    [11782774748]     = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/IQ-Test.lua",
-    [14692578554]     = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/IQ-Test.lua",
-    [102032333476768] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/IQ-Test.lua",
-
     -- No Jumping Obby
     [17321628486] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/No-Jumping-Obby.lua",
 }
