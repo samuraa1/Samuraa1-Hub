@@ -22,6 +22,11 @@ local Scripts = {
 
     -- No Jumping Obby
     [17321628486] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/No-Jumping-Obby.lua",
+
+    -- Secure the Airport
+    [102054284786904] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/STA.lua",
+    [110371745562456] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/STA.lua",
+    [138145699008779] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/STA.lua",
 }
 
 local Scripturl = Scripts[game.PlaceId]
