@@ -27,8 +27,10 @@ local Scripts = {
     [102054284786904] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/STA.lua",
     [110371745562456] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/STA.lua",
     [138145699008779] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/STA.lua",
-}
 
+    -- Elemental Powers Tycoon
+    [10253248401] = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/EPT.lua",
+}
 local Scripturl = Scripts[game.PlaceId]
 if Scripturl then
     loadstring(game:HttpGet(Scripturl))()
