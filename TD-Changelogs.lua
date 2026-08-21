@@ -3,7 +3,11 @@ Library:CreateChangelogDialog({
     Title = "The Dropper Script - Changelogs",
     ChangelogText = [[
         Version: 2.0.0
-        + New UI and etc.
+        + Faster Auto Complete Levels
++ Added 3 New Levels In Auto Complete Levels
++ Added Toggle 'Complete Current Level'
+
++ Updated Feedback Webhook
     ]],
     Search = false,
     NotifyLibrary = "Luna",
