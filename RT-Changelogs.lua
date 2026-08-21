@@ -1,15 +1,68 @@
-local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/EnesXVC/librarys/main/SearchAndChangeLogLibrary/Source'))()
+local Library = loadstring(game:HttpGet('https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/SearchAndChangeLogLibrary/Source'))()
 
 Library:CreateChangelogDialog({
     Title = "Raft Tycoon Script - Changelogs",
     ChangelogText = [[
-        Version: 1.5.0
-        + New UI!
+        Version: 2.0.0
+        + Renamed 'Miscellaneous' GroupBox to 'QoL / Safety'
 
-+ Rewrited Auto Collect Money & Auto Buy - Now Parts To Collect Money Or Buy Doesn't Teleport To You (working with just firetouchinterest)
++ Optimized Auto Collect Money - Now Auto Detects New ATMs / Collect Parts (No Need To Re-Enable)
 
-+ All Codes In 'Redeem All Valid Codes' Are Working
-and etc.
++ Rewrited Auto Buy - Now Smart Auto Buy + Buy Priority (Cheapest First / Most Expensive First / Base First / Droppers First) + Select Zones To Buy (If Zone Disabled - Buttons From This Zone Will Not Be Bought) + Skips Owned & Robux Buttons
+
++ Rewrited Auto Rebirth - Now Smart Auto Rebirth (Rebirths Only If U Have Enough Money)
+
++ Added Auto Claim Group Reward
++ Added Auto Open Crate
+
++ Working Codes: Winter, Shark, Freemoney, 2025, Volcano
+
++ Added QoL / Safety Features:
+- Remove Ads / Popups
+- Disable Weather FX
+- Instant Interact
+
++ Added Teleports:
+- Teleport to My Tycoon
+- TP to Farm
+- TP to Hotel
+- TP to Military Island
+- TP to Tropical Island
+- TP to Underwater
+- Portal: Base → Map
+- Portal: Map → Base
+
++ Added Info Tab, Features:
+- Cash
+- Rebirth
+- Cash/sec
+- Lootbox Timer
+- Upgrades Progress
+- Remaining Buttons
+- Rebirth Threshold
+- Friend Bonus
+- Players Online
+
++ Added Visuals:
+- Custom Sky
+- Shark ESP
+- Lootbox ESP
+- Infinite Cash (Visual) Toggle
+- Infinite Cash On Leaderstats Toggle
+
++ Added Dividers In Main
++ Rewrote Tooltips
++ Fixed Teleports
++ Replaced Broken Info / Tycoon Icons
++ Fixed Enable Ambient And Fullbright Warns
+
++ Server Tab:
+- Removed Streaming Status
+- Added FPS
+- Added Session Earned
+- Added Cash/Hour
+
++ Updated Feedback
     ]],
     Search = false,
     NotifyLibrary = "Luna",
