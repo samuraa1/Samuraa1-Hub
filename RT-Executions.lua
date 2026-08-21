@@ -9,8 +9,6 @@
 ]]
 
 -- Open Source
--- Who Will Delete Or Spam Webhook - Gay + Nigger
-
 -- There Is No Point To Spamming Or Delete Webhook, Because Webhooks Auto Updating
 
 
