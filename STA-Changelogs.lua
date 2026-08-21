@@ -4,7 +4,8 @@ Library:CreateChangelogDialog({
     Title = "Secure the Airport Script - Changelogs",
     ChangelogText = [[
         Version: 1.0.0
-        + Released
+        + Rewrited Auto Do Everything (now farming fast asf) and many other features, lazy to list them
++ Removed Feedback
     ]],
     Search = false,
     NotifyLibrary = "Luna",
