@@ -252,16 +252,19 @@ local enemyESP = {}
 local worldESP = {}
 local forEachPassenger
 local getEnemiesInRange
+local collectLiveEnemies
 local isTargetVisible
 local getShootOrigin
 local updatePassengerESP, updateLuggageESP, updateEnemyESP, updateWorldESP
 local runAutomation
 local tweenHRPTo
+local tryAmmoRefill
 local Webhook = {}
 local originalLighting = {}
 local savedCamera = { captured = false }
 local pendingDeny = setmetatable({}, { __mode = "k" })
 local pendingHostileCapture = setmetatable({}, { __mode = "k" })
+local arrestFocusNpc = nil
 local antiAfkConn
 local lastTaser = 0
 local lastArrest = 0
@@ -277,6 +280,7 @@ local lastRetreat = 0
 local lastFireDodge = 0
 local fireDodgeBusy = false
 local powerRebootBusy = false
+local ammoRefillBusy = false
 local fireExtinguishBusy = false
 local retreatBusy = false
 local defaultFOV = 70
@@ -285,7 +289,6 @@ local moveBusy = false
 local moveBusyStartedAt = 0
 local powerOffline = false
 local handledCheckpoint = setmetatable({}, { __mode = "k" })
-local sinkingNPCs = setmetatable({}, { __mode = "k" })
 local farmStandMoving = false
 
 local THIRD_PERSON_DISTANCE = 10
@@ -300,8 +303,10 @@ local BOSS_FIRE_DODGE_STEP = 11
 local BOSS_FIRE_DODGE_DURATION = 0.18
 local FARM_STAND_POS = Vector3.new(-46.58, 3.44, -13.56)
 local FARM_STAND_THRESHOLD = 1.5
-local FARM_NPC_SINK_SPEED = 150
 local FARM_GOOD_NPC_SPEED = 200
+local POWER_REBOOT_STAND = Vector3.new(48.15, 11.05, 5.35)
+local AMMO_STAND_GROUND = Vector3.new(-8.1, 3.2, 4.5)
+local AMMO_STAND_OFFICE = Vector3.new(28.9, 11.05, 23.25)
 
 local Settings = {
     PassengerESP = true,
@@ -431,6 +436,10 @@ local function autoOn(key)
     return Settings[key]
 end
 
+local function shouldUseFarmStand()
+    return autoOn("AutoMetalDetector") or autoOn("AutoIDCheck")
+end
+
 local function useHostileCaptureChain()
     if Settings.AutoDoEverything then
         return true
@@ -497,7 +506,7 @@ local function resetDayAutomationState()
     handledCheckpoint = setmetatable({}, { __mode = "k" })
     clearPendingDeny()
     clearPendingHostileCapture()
-    table.clear(sinkingNPCs)
+    arrestFocusNpc = nil
     farmStandMoving = false
 end
 
@@ -557,6 +566,12 @@ local function equipGun()
         hum:EquipTool(gun)
     end
     return gun
+end
+
+local function getGunAmmoValue(gun)
+    local vars = gun and gun:FindFirstChild("Gun_Variables")
+    local ammo = vars and vars:FindFirstChild("Ammo")
+    return ammo, ammo and ammo.Value or 0
 end
 
 local function getNPCProps(npc)
@@ -652,7 +667,7 @@ local function classifyNPC(npc)
         return "DECOY", Color3.fromRGB(255, 215, 70), false
     end
     if sv.MetalDetector and sv.MetalDetector.Value then
-        return "METAL+", Color3.fromRGB(255, 175, 45), true
+        return "METAL+", Color3.fromRGB(255, 175, 45), false
     end
 
     return "OK", Color3.fromRGB(210, 215, 225), false
@@ -676,6 +691,23 @@ local function isNpcLockedUp(sv)
     return false
 end
 
+local function shouldCuffPassenger(npc)
+    local _, rv, sv = getNPCProps(npc)
+    if not rv or not sv or isNpcLockedUp(sv) then
+        return false
+    end
+    if sv.Hostile and sv.Hostile.Value then
+        return true
+    end
+    if rv.FakePassport and rv.FakePassport.Value then
+        return true
+    end
+    if rv.ContrabandReal and rv.ContrabandReal.Value then
+        return true
+    end
+    return false
+end
+
 local function shouldTaserNPC(npc)
     local _, _, sv = getNPCProps(npc)
     if not sv or isNpcLockedUp(sv) then
@@ -687,20 +719,6 @@ local function shouldTaserNPC(npc)
     -- Full auto + checkpoint flow handle METAL+/contraband at podiums; roam taser = hostile only
     if useHostileOnlyTargeting() then
         return sv.Hostile and sv.Hostile.Value
-    end
-    return shouldArrestNPC(npc)
-end
-
-local function shouldRoamingArrestNPC(npc)
-    local _, _, sv = getNPCProps(npc)
-    if not sv or isNpcLockedUp(sv) then
-        return false, nil
-    end
-    if useHostileOnlyTargeting() then
-        if sv.Hostile and sv.Hostile.Value and sv.Tasered and sv.Tasered.Value then
-            return true, "HOSTILE"
-        end
-        return false, nil
     end
     return shouldArrestNPC(npc)
 end
@@ -891,7 +909,7 @@ end
 
         local map = Workspace:FindFirstChild("Map")
         if map then
-            for _, inst in map:GetDescendants() do
+            for _, inst in map:GetChildren() do
                 if isPassenger(inst) then
                     callback(inst)
                 end
@@ -980,16 +998,29 @@ end
     end
 
     local active = {}
+    local luggageRoots = {}
+    local ws = Workspace:FindFirstChild("WorkspaceScriptable")
+    local normalStorage = ws
+        and ws:FindFirstChild("Storage")
+        and ws.Storage:FindFirstChild("NormalStorage")
+    if normalStorage then
+        table.insert(luggageRoots, normalStorage:FindFirstChild("LuggageOpenWorkspace"))
+        table.insert(luggageRoots, normalStorage:FindFirstChild("LuggageWorkspace"))
+    end
 
-    for _, inst in Workspace:GetDescendants() do
-        if inst.Name == "OpenableLuggage" and inst.Parent then
-            active[inst] = true
-            local contraband = isLuggageContraband(inst)
-            local color = contraband and Color3.fromRGB(255, 110, 45) or Color3.fromRGB(150, 210, 255)
-            local label = contraband and "BAD BAG" or "SAFE BAG"
-            local dist = getDistance(hrp.Position, inst)
-            local text = Settings.ESPDistance and string.format("%s  %.0fm", label, dist) or label
-            ensureBillboard(inst, text, color, luggageESP, true)
+    for _, folder in luggageRoots do
+        if folder then
+            for _, inst in folder:GetChildren() do
+                if inst.Name == "OpenableLuggage" then
+                    active[inst] = true
+                    local contraband = isLuggageContraband(inst)
+                    local color = contraband and Color3.fromRGB(255, 110, 45) or Color3.fromRGB(150, 210, 255)
+                    local label = contraband and "BAD BAG" or "SAFE BAG"
+                    local dist = getDistance(hrp.Position, inst)
+                    local text = Settings.ESPDistance and string.format("%s  %.0fm", label, dist) or label
+                    ensureBillboard(inst, text, color, luggageESP, true)
+                end
+            end
         end
     end
 
@@ -1011,20 +1042,16 @@ end
     end
 
     local active = {}
+    local enemies = collectLiveEnemies and collectLiveEnemies() or {}
 
-    for _, inst in Workspace:GetDescendants() do
-        if inst:IsA("Model") and ENEMY_NAMES[inst.Name] then
-            local hum = inst:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 then
-                active[inst] = true
-                local color = Color3.fromRGB(255, 45, 120)
-                local text = inst.Name
-                if Settings.ESPDistance then
-                    text = string.format("%s  %.0fm", inst.Name, getDistance(hrp.Position, inst))
-                end
-                ensureBillboard(inst, text, color, enemyESP, true)
-            end
+    for _, inst in enemies do
+        active[inst] = true
+        local color = Color3.fromRGB(255, 45, 120)
+        local text = inst.Name
+        if Settings.ESPDistance then
+            text = string.format("%s  %.0fm", inst.Name, getDistance(hrp.Position, inst))
         end
+        ensureBillboard(inst, text, color, enemyESP, true)
     end
 
     for model in pairs(enemyESP) do
@@ -1154,8 +1181,16 @@ end
         return false
     end
 
+    local hum = inst:FindFirstChildOfClass("Humanoid")
+    local body = inst:FindFirstChild("HumanoidRootPart") or inst:FindFirstChild("Head")
+    local isLive = hum and hum.Health > 0 and hum.MaxHealth < math.huge and body ~= nil
+
     local storage = ws:FindFirstChild("Storage")
     if storage and inst:IsDescendantOf(storage) then
+        local disasterStorage = storage:FindFirstChild("DisasterStorage")
+        if disasterStorage and inst:IsDescendantOf(disasterStorage) then
+            return not isLive
+        end
         return true
     end
 
@@ -1166,14 +1201,46 @@ end
 
     local disasterStorage = ws:FindFirstChild("DisasterStorage")
     if disasterStorage and inst:IsDescendantOf(disasterStorage) then
-        local hum = inst:FindFirstChildOfClass("Humanoid")
-        if not hum or hum.Health <= 0 then
-            return true
-        end
+        return not isLive
     end
 
     return false
 end
+
+    local enemyScanCache = { at = 0, models = {} }
+
+    collectLiveEnemies = function()
+        local now = tick()
+        if now - enemyScanCache.at < 0.2 and enemyScanCache.models then
+            local live = {}
+            for _, inst in enemyScanCache.models do
+                if inst and inst.Parent then
+                    local hum = inst:FindFirstChildOfClass("Humanoid")
+                    if hum and hum.Health > 0 then
+                        table.insert(live, inst)
+                    end
+                end
+            end
+            if #live == #enemyScanCache.models then
+                return enemyScanCache.models
+            end
+            enemyScanCache.models = live
+            return live
+        end
+
+        local models = {}
+        for _, inst in Workspace:GetDescendants() do
+            if inst:IsA("Model") and ENEMY_NAMES[inst.Name] and not isStoredEnemyModel(inst) then
+                local hum = inst:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    table.insert(models, inst)
+                end
+            end
+        end
+        enemyScanCache.at = now
+        enemyScanCache.models = models
+        return models
+    end
 
     getEnemiesInRange = function(maxRange, visibleOnly)
         local _, _, hrp = getCharacter()
@@ -1183,15 +1250,10 @@ end
 
         local origin = getShootOrigin()
         local enemies = {}
-        for _, inst in Workspace:GetDescendants() do
-            if inst:IsA("Model") and ENEMY_NAMES[inst.Name] and not isStoredEnemyModel(inst) then
-                local hum = inst:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    local dist = getDistance(hrp.Position, inst)
-                    if dist <= maxRange and (not visibleOnly or isTargetVisible(inst, origin)) then
-                        table.insert(enemies, { model = inst, dist = dist })
-                    end
-                end
+        for _, inst in collectLiveEnemies() do
+            local dist = getDistance(hrp.Position, inst)
+            if dist <= maxRange and (not visibleOnly or isTargetVisible(inst, origin)) then
+                table.insert(enemies, { model = inst, dist = dist })
             end
         end
 
@@ -1330,6 +1392,28 @@ local function fireGunAt(target)
 
     local direction = (targetPart.Position - origin).Unit
     ClientEvents.FireGun:FireServer(gun, origin, direction)
+end
+
+local function fireGunAtSafe(target)
+    if not ClientEvents then
+        return false
+    end
+
+    local gun = shouldAutoEquipTools() and equipGun() or findGun()
+    if not gun then
+        return false
+    end
+
+    local targetPart = target:FindFirstChild("HumanoidRootPart") or getAdornee(target)
+    if not (targetPart and targetPart:IsA("BasePart")) then
+        return false
+    end
+
+    local origin = targetPart.Position + Vector3.new(0, 3, 0)
+    local offset = targetPart.Position - origin
+    local direction = offset.Magnitude > 0.05 and offset.Unit or Vector3.new(0, -1, 0)
+    ClientEvents.FireGun:FireServer(gun, origin, direction)
+    return true
 end
 
 ;(function()
@@ -1616,53 +1700,152 @@ local function escortToJailAndReturn(savedCFrame)
     end)
 end
 
-local function pressPodium(podiumName, accept, npc, stage)
-    local prompt = getPodiumPrompt(podiumName, accept)
-    if not prompt then
+local ARREST_STAND_OFFSET = 2
+
+local function getArrestEngageRange()
+    return math.max(3, (Settings.ArrestRange or 10) - 1)
+end
+
+local function isArrestTargetValid(npc)
+    if not (npc and npc.Parent) then
+        return false
+    end
+    if not pendingDeny[npc] and not pendingHostileCapture[npc] then
+        return false
+    end
+    local _, _, sv = getNPCProps(npc)
+    if sv and sv.InJail and sv.InJail.Value then
+        return false
+    end
+    return true
+end
+
+local function clearArrestFocus(npc)
+    if not npc or arrestFocusNpc == npc then
+        arrestFocusNpc = nil
+    end
+end
+
+local function getArrestFocus()
+    if isArrestTargetValid(arrestFocusNpc) then
+        return arrestFocusNpc
+    end
+    arrestFocusNpc = nil
+
+    local _, _, hrp = getCharacter()
+    if not hrp then
+        return
+    end
+
+    local best, bestDist
+    local function consider(npc)
+        if not isArrestTargetValid(npc) then
+            return
+        end
+        local dist = getDistance(hrp.Position, npc)
+        if not bestDist or dist < bestDist then
+            best = npc
+            bestDist = dist
+        end
+    end
+
+    for npc in pairs(pendingDeny) do
+        consider(npc)
+    end
+    for npc in pairs(pendingHostileCapture) do
+        consider(npc)
+    end
+
+    arrestFocusNpc = best
+    return arrestFocusNpc
+end
+
+local function freezeNpcForArrest(npc)
+    local humanoid = npc and npc:FindFirstChildOfClass("Humanoid")
+    if humanoid then
+        humanoid.WalkSpeed = 0
+    end
+end
+
+local function moveNearForArrest(npc, data)
+    local _, _, hrp = getCharacter()
+    if not (hrp and npc and data) then
         return false
     end
 
-    local _, _, hrp = getCharacter()
-    local savedCFrame = hrp and hrp.CFrame
-    tweenToTarget(prompt, 2.5)
+    freezeNpcForArrest(npc)
 
-    local fired = fireProximityPrompt(prompt)
-
-    if accept or not npc then
-        return fired
+    if getDistance(hrp.Position, npc) <= getArrestEngageRange() then
+        return true
     end
 
-    pendingDeny[npc] = {
-        stage = stage,
-        savedCFrame = savedCFrame,
-        at = tick(),
-    }
+    if data.moving and not moveBusy and tick() - (data.moveStarted or data.at) > 8 then
+        data.moving = false
+    end
 
-    return fired
+    if not data.moving and not moveBusy then
+        data.moving = true
+        data.moveStarted = tick()
+        task.spawn(function()
+            pcall(function()
+                moveBusy = true
+                moveBusyStartedAt = tick()
+                moveNearTarget(npc, ARREST_STAND_OFFSET)
+            end)
+            moveBusy = false
+            moveBusyStartedAt = 0
+            data.moving = false
+        end)
+    end
+
+    return false
 end
 
 local function processPendingDeny()
+    if not autoOn("AutoArrest") then
+        return
+    end
+    if autoOn("AutoShoot") and hasLiveDisasterEnemies(45) then
+        return
+    end
+
     for npc, data in pairs(pendingDeny) do
         if not (npc and npc.Parent) then
             pendingDeny[npc] = nil
-        elseif tick() - data.at > 12 then
+            clearArrestFocus(npc)
+        elseif tick() - data.at > 25 then
             pendingDeny[npc] = nil
-        else
-            local _, _, sv = getNPCProps(npc)
-            if sv and sv.Arrested and sv.Arrested.Value then
-                escortToJailAndReturn(data.savedCFrame)
-                markCheckpointHandled(npc, data.stage)
-                pendingDeny[npc] = nil
-            elseif needsTaserBeforeArrest(npc) then
-                if tick() - (data.lastTaser or 0) >= 0.35 then
-                    fireTaserAt(npc)
-                    data.lastTaser = tick()
-                end
-            elseif tick() - data.at >= 0.15 and tick() - (data.lastArrest or 0) >= 0.4 then
-                fireArrestAt(npc)
-                data.lastArrest = tick()
-            end
+            clearArrestFocus(npc)
         end
+    end
+
+    local npc = getArrestFocus()
+    if not npc or not pendingDeny[npc] then
+        return
+    end
+
+    local data = pendingDeny[npc]
+    local _, _, sv = getNPCProps(npc)
+    if not moveNearForArrest(npc, data) then
+        return
+    end
+    if needsTaserBeforeArrest(npc) then
+        if tick() - (data.lastTaser or 0) >= 0.35 then
+            fireTaserAt(npc)
+            data.lastTaser = tick()
+        end
+        return
+    end
+    if tick() - data.at >= 0.15 and tick() - (data.lastArrest or 0) >= 0.35 then
+        fireArrestAt(npc)
+        data.lastArrest = tick()
+        data.cuffAttempts = (data.cuffAttempts or 0) + 1
+    end
+    if sv and sv.Arrested and sv.Arrested.Value and (data.cuffAttempts or 0) >= 1 then
+        escortToJailAndReturn(data.savedCFrame)
+        markCheckpointHandled(npc, data.stage)
+        pendingDeny[npc] = nil
+        clearArrestFocus(npc)
     end
 end
 
@@ -1693,67 +1876,37 @@ local function processHostileCapture()
         return
     end
 
-    local nearestNpc, nearestDist
-    for npc in pairs(pendingHostileCapture) do
-        if npc and npc.Parent then
-            local dist = getDistance(hrp.Position, npc)
-            if not nearestDist or dist < nearestDist then
-                nearestNpc = npc
-                nearestDist = dist
-            end
-        end
-    end
-
     for npc, data in pairs(pendingHostileCapture) do
         if not (npc and npc.Parent) then
             pendingHostileCapture[npc] = nil
+            clearArrestFocus(npc)
         elseif tick() - data.at > 30 then
             pendingHostileCapture[npc] = nil
+            clearArrestFocus(npc)
         else
             local _, _, sv = getNPCProps(npc)
             if not sv or not (sv.Hostile and sv.Hostile.Value) then
                 pendingHostileCapture[npc] = nil
+                clearArrestFocus(npc)
             elseif sv.InJail and sv.InJail.Value then
                 pendingHostileCapture[npc] = nil
-            elseif sv.Arrested and sv.Arrested.Value then
-                if not data.escorted and autoOn("AutoJailEscort") and npc == nearestNpc then
-                    escortToJailAndReturn(data.savedCFrame)
-                    data.escorted = true
-                end
+                clearArrestFocus(npc)
             end
         end
     end
 
-    if not nearestNpc or not pendingHostileCapture[nearestNpc] then
+    local nearestNpc = getArrestFocus()
+    if not nearestNpc or not pendingHostileCapture[nearestNpc] or pendingDeny[nearestNpc] then
         return
     end
 
     local data = pendingHostileCapture[nearestNpc]
     local _, _, sv = getNPCProps(nearestNpc)
-    if not sv or (sv.InJail and sv.InJail.Value) or (sv.Arrested and sv.Arrested.Value) then
+    if not sv or (sv.InJail and sv.InJail.Value) then
         return
     end
 
-    local engageRange = math.max(Settings.TaserRange, Settings.ArrestRange) + 2
-    if data.moving and not moveBusy and tick() - (data.moveStarted or data.at) > 8 then
-        data.moving = false
-    end
-
-    if getDistance(hrp.Position, nearestNpc) > engageRange then
-        if not data.moving and not moveBusy then
-            data.moving = true
-            data.moveStarted = tick()
-            task.spawn(function()
-                pcall(function()
-                    moveBusy = true
-                    moveBusyStartedAt = tick()
-                    moveNearTarget(nearestNpc, 3.5)
-                end)
-                moveBusy = false
-                moveBusyStartedAt = 0
-                data.moving = false
-            end)
-        end
+    if not moveNearForArrest(nearestNpc, data) then
         return
     end
 
@@ -1762,10 +1915,19 @@ local function processHostileCapture()
             fireTaserAt(nearestNpc)
             data.lastTaser = tick()
         end
-    elseif sv.Tasered and sv.Tasered.Value then
-        if tick() - (data.lastArrest or 0) >= 0.3 then
-            fireArrestAt(nearestNpc)
-            data.lastArrest = tick()
+        return
+    end
+
+    if tick() - (data.lastArrest or 0) >= 0.3 then
+        fireArrestAt(nearestNpc)
+        data.lastArrest = tick()
+        data.cuffAttempts = (data.cuffAttempts or 0) + 1
+    end
+
+    if sv.Arrested and sv.Arrested.Value and (data.cuffAttempts or 0) >= 1 then
+        if not data.escorted and autoOn("AutoJailEscort") then
+            escortToJailAndReturn(data.savedCFrame)
+            data.escorted = true
         end
     end
 end
@@ -1795,13 +1957,13 @@ local function scanHostilesForCapture()
     end)
 end
 
-local function processDisasterCombat(now)
+local function processFarmDisasterCombat(now)
     if not autoOn("AutoShoot") then
         return
     end
 
-    local allEnemies = getEnemiesInRange(Settings.GunRange + 50, false)
-    if #allEnemies == 0 then
+    local enemies = getEnemiesInRange(Settings.GunRange + 80, false)
+    if #enemies == 0 then
         return
     end
 
@@ -1809,34 +1971,20 @@ local function processDisasterCombat(now)
         tryAutoReload()
     end
 
-    local visibleEnemies = getEnemiesInRange(Settings.GunRange, true)
-    if #visibleEnemies == 0 then
-        if not moveBusy then
-            task.spawn(function()
-                moveNearTarget(allEnemies[1], math.min(Settings.GunRange * 0.5, 20), 0.3)
-            end)
-        end
+    local gun = findGun()
+    local _, ammoValue = getGunAmmoValue(gun)
+    if gun and ammoValue <= 0 then
+        tryAmmoRefill(now)
         return
     end
 
-    local shootDelay = getAutoShootDelay()
-    if now - lastGun < shootDelay then
+    if now - lastGun < getAutoShootDelay() then
         return
     end
 
-    local target = visibleEnemies[1]
-    local _, _, hrp = getCharacter()
-    if hrp then
-        local dist = getDistance(hrp.Position, target)
-        if dist > Settings.GunRange * 0.9 and not moveBusy then
-            task.spawn(function()
-                moveNearTarget(target, math.min(Settings.GunRange * 0.6, 25), 0.25)
-            end)
-        end
+    if fireGunAtSafe(enemies[1]) then
+        lastGun = now
     end
-
-    fireGunAt(target)
-    lastGun = now
 end
 
 local function processLuggageWorkspace()
@@ -1862,49 +2010,223 @@ local function processLuggageWorkspace()
     end
 end
 
-local function tryAmmoRefill(now)
-    if not autoOn("AutoAmmoRefill") or now - lastAmmoRefill < 1.5 then
+local cachedBoss = { at = 0, model = false }
+
+local function getActiveBoss()
+    local now = tick()
+    if now - cachedBoss.at < 0.35 then
+        local inst = cachedBoss.model
+        if inst then
+            local hum = inst.Parent and inst:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and hum.MaxHealth < math.huge then
+                return inst
+            end
+            cachedBoss.model = nil
+        else
+            return nil
+        end
+    end
+
+    cachedBoss.at = now
+    cachedBoss.model = nil
+    for _, inst in Workspace:GetDescendants() do
+        if inst.Name == "BossNPC" and inst:IsA("Model") then
+            local hum = inst:FindFirstChildOfClass("Humanoid")
+            if hum and hum.Health > 0 and hum.MaxHealth < math.huge then
+                cachedBoss.model = inst
+                return inst
+            end
+        end
+    end
+end
+
+local function getPromptWorldPosition(prompt)
+    if not (prompt and prompt.Parent) then
+        return
+    end
+    local parent = prompt.Parent
+    if parent:IsA("Attachment") then
+        return parent.WorldPosition
+    end
+    if parent:IsA("BasePart") then
+        return parent.Position
+    end
+    local part = prompt:FindFirstAncestorWhichIsA("BasePart")
+    return part and part.Position
+end
+
+local function getStandNearPrompt(prompt, dist)
+    dist = dist or 3
+    local pos = getPromptWorldPosition(prompt)
+    if not pos then
         return
     end
 
-    if hasBlockingThreats() or hasLiveDisasterEnemies(30) then
-        return
+    local part = prompt:FindFirstAncestorWhichIsA("BasePart")
+    local standY = pos.Y
+    if part then
+        standY = part.Position.Y
+        if part.Size.Y > 4 then
+            standY = part.Position.Y - part.Size.Y * 0.5 + 3
+        end
     end
 
-    local gun = findGun()
-    if not gun or not gun:FindFirstChild("Gun_Variables") then
-        return
+    local model = prompt:FindFirstAncestorOfClass("Model")
+    if model and model.Name == "ComputerPower" then
+        return POWER_REBOOT_STAND
     end
 
-    local ammo = gun.Gun_Variables:FindFirstChild("Ammo")
-    if not ammo or ammo.Value > 0 then
-        return
+    local _, _, hrp = getCharacter()
+    local away = Vector3.new(0, 0, 1)
+    if hrp then
+        local flat = Vector3.new(hrp.Position.X - pos.X, 0, hrp.Position.Z - pos.Z)
+        if flat.Magnitude > 0.2 then
+            away = flat.Unit
+        end
     end
 
-    if autoOn("AutoReload") then
-        tryAutoReload()
-        return
-    end
+    return Vector3.new(pos.X, standY, pos.Z) + away * dist
+end
 
+local function findClosestAmmoPrompt()
+    local _, _, hrp = getCharacter()
+    local origin = hrp and hrp.Position
+    local best, bestDist
     local ws = getWorkspaceScriptable()
-    local refill = ws and ws:FindFirstChild("AmmoRefill")
-    local attachment = refill and refill:FindFirstChild("PromptAttachment", true)
-    local prompt = attachment and attachment:FindFirstChild("ProximityPrompt")
-    if not (prompt and prompt.Enabled) or moveBusy then
+    if not ws then
         return
     end
 
+    for _, refill in ws:GetChildren() do
+        if refill.Name ~= "AmmoRefill" then
+            continue
+        end
+        for _, inst in refill:GetDescendants() do
+            if inst:IsA("ProximityPrompt") then
+                local pos = getPromptWorldPosition(inst)
+                if not pos then
+                    continue
+                end
+                local dist = origin and (origin - pos).Magnitude or 0
+                if not bestDist or dist < bestDist then
+                    best = inst
+                    bestDist = dist
+                end
+            end
+        end
+    end
+
+    return best
+end
+
+local function getAmmoStandPosition(prompt)
+    local pos = getPromptWorldPosition(prompt)
+    if not pos then
+        return AMMO_STAND_GROUND
+    end
+    if pos.Y > 7 then
+        return AMMO_STAND_OFFICE
+    end
+    return AMMO_STAND_GROUND
+end
+
+tryAmmoRefill = function(now)
+    if not autoOn("AutoAmmoRefill") or ammoRefillBusy or powerRebootBusy or moveBusy then
+        return
+    end
+    if now - lastAmmoRefill < 1.2 then
+        return
+    end
+
+    local gun = shouldAutoEquipTools() and equipGun() or findGun()
+    local ammo, ammoValue = getGunAmmoValue(gun)
+    if not gun or not ammo or ammoValue > 0 then
+        return
+    end
+
+    local prompt = findClosestAmmoPrompt()
+    local _, _, hrp = getCharacter()
+    local savedCFrame = hrp and hrp.CFrame
+    ammoRefillBusy = true
     moveBusy = true
     moveBusyStartedAt = tick()
     task.spawn(function()
         pcall(function()
-            tweenToTarget(prompt, 2.5)
-            if prompt.Parent and fireProximityPrompt(prompt) then
-                lastAmmoRefill = tick()
+            equipGun()
+
+            if autoOn("AutoReload") then
+                tryAutoReload()
+                task.wait(0.4)
+                local _, liveAmmo = getGunAmmoValue(findGun())
+                if liveAmmo > 0 then
+                    lastAmmoRefill = tick()
+                    local enemies = getEnemiesInRange(Settings.GunRange + 80, false)
+                    for _ = 1, 12 do
+                        if #enemies == 0 then
+                            break
+                        end
+                        if autoOn("AutoReload") then
+                            tryAutoReload()
+                        end
+                        fireGunAtSafe(enemies[1])
+                        task.wait(getAutoShootDelay())
+                        enemies = getEnemiesInRange(Settings.GunRange + 80, false)
+                    end
+                    return
+                end
+            end
+
+            if not prompt then
+                prompt = findClosestAmmoPrompt()
+            end
+            if not prompt then
+                return
+            end
+
+            local standPos = getAmmoStandPosition(prompt)
+            tweenHRPTo(standPos, 0.15)
+            task.wait(0.2)
+
+            local steps = 0
+            while prompt.Parent and steps < 20 do
+                local _, _, liveHrp = getCharacter()
+                if liveHrp then
+                    local flat = Vector3.new(liveHrp.Position.X - standPos.X, 0, liveHrp.Position.Z - standPos.Z)
+                    if flat.Magnitude > 8 then
+                        tweenHRPTo(standPos, 0.12)
+                    end
+                end
+                local _, liveAmmo = getGunAmmoValue(findGun())
+                if liveAmmo > 0 then
+                    break
+                end
+                fireProximityPrompt(prompt)
+                task.wait(0.25)
+                steps += 1
+            end
+
+            lastAmmoRefill = tick()
+
+            local enemies = getEnemiesInRange(Settings.GunRange + 80, false)
+            if #enemies > 0 then
+                for _ = 1, 12 do
+                    enemies = getEnemiesInRange(Settings.GunRange + 80, false)
+                    if #enemies == 0 then
+                        break
+                    end
+                    if autoOn("AutoReload") then
+                        tryAutoReload()
+                    end
+                    fireGunAtSafe(enemies[1])
+                    task.wait(getAutoShootDelay())
+                end
+            elseif savedCFrame and not getActiveBoss() then
+                tweenHRPToCFrame(savedCFrame, 0.15)
             end
         end)
         moveBusy = false
         moveBusyStartedAt = 0
+        ammoRefillBusy = false
     end)
 end
 
@@ -2014,104 +2336,118 @@ local function getNearestFromList(origin, items)
     return best, bestDist
 end
 
-local function tryFireExtinguisher(now)
-    if not autoOn("AutoFireExtinguisher") or now - lastExtinguisher < 2 or fireExtinguishBusy or moveBusy then
+local function getComputerPower()
+    local ws = getWorkspaceScriptable()
+    local computers = ws and ws:FindFirstChild("Objects") and ws.Objects:FindFirstChild("Computers")
+    return computers and computers:FindFirstChild("ComputerPower")
+end
+
+local function isComputerPowerOffline()
+    local computerPower = getComputerPower()
+    local highlight = computerPower and computerPower:FindFirstChild("Highlight")
+    if highlight then
+        return highlight.Enabled == true
+    end
+    return powerOffline == true
+end
+
+local function findRebootPrompt()
+    local computerPower = getComputerPower()
+    if not computerPower then
         return
     end
 
-    local fires = getActiveFires()
-    if #fires == 0 then
-        return
+    local fallback
+    for _, inst in computerPower:GetDescendants() do
+        if inst:IsA("ProximityPrompt") and inst.Parent then
+            local action = string.lower(inst.ActionText or "")
+            local object = string.lower(inst.ObjectText or "")
+            if action:find("reboot", 1, true)
+                or object:find("reboot", 1, true)
+                or action:find("restore power", 1, true)
+                or object:find("restore power", 1, true) then
+                if inst.Enabled then
+                    return inst
+                end
+                fallback = inst
+            end
+        end
     end
+    return fallback
+end
 
+local function stayAtPowerStand()
     local _, _, hrp = getCharacter()
     if not hrp then
         return
     end
-
-    local fireTarget = getNearestFromList(hrp.Position, fires)
-    if not fireTarget then
-        return
-    end
-
-    fireExtinguishBusy = true
-    moveBusy = true
-    moveBusyStartedAt = tick()
-    task.spawn(function()
-        pcall(function()
-            local tool = getTool("Fire Extinguisher")
-            if not tool then
-                local prompt = findEnabledExtinguisherPrompt()
-                if prompt then
-                    tweenToTarget(prompt, 2)
-                    fireProximityPrompt(prompt)
-                    task.wait(0.6)
-                    tool = getTool("Fire Extinguisher")
-                end
-            end
-
-            if not tool then
-                return
-            end
-
-            equipTool("Fire Extinguisher")
-
-            local standPos = fireTarget.Position + Vector3.new(0, 0, 4)
-            tweenHRPTo(standPos)
-            moveBusy = false
-
-            local sprayStart = tick()
-            while tick() - sprayStart < 4 do
-                local activeFires = getActiveFires()
-                if #activeFires == 0 then
-                    break
-                end
-
-                local _, _, liveHrp = getCharacter()
-                local target = liveHrp and getNearestFromList(liveHrp.Position, activeFires)
-                if liveHrp and target then
-                    liveHrp.CFrame = CFrame.new(liveHrp.Position, target.Position)
-                end
-
-                setExtinguisherSpray(true)
-                task.wait(0.2)
-            end
-
-            setExtinguisherSpray(false)
-            lastExtinguisher = tick()
-        end)
-        fireExtinguishBusy = false
-        moveBusy = false
-        moveBusyStartedAt = 0
-    end)
-end
-
-local function findRebootPrompt()
-    local ws = getWorkspaceScriptable()
-    local computers = ws and ws:FindFirstChild("Objects") and ws.Objects:FindFirstChild("Computers")
-    local computerPower = computers and computers:FindFirstChild("ComputerPower")
-    if computerPower then
-        for _, inst in computerPower:GetDescendants() do
-            if inst:IsA("ProximityPrompt") and inst.ActionText == "Reboot" and inst.Enabled then
-                return inst
-            end
-        end
-    end
-
-    for _, inst in Workspace:GetDescendants() do
-        if inst:IsA("ProximityPrompt") and inst.ActionText == "Reboot" and inst.Enabled then
-            return inst
-        end
+    local flat = Vector3.new(hrp.Position.X - POWER_REBOOT_STAND.X, 0, hrp.Position.Z - POWER_REBOOT_STAND.Z)
+    if flat.Magnitude > 6 then
+        tweenHRPTo(POWER_REBOOT_STAND, 0.12)
     end
 end
 
-local function tryPowerReboot(now)
-    if not autoOn("AutoPowerReboot") or now - lastPowerReboot < 3 or powerRebootBusy or moveBusy then
-        return
+local function executePowerReboot(afterSuccess)
+    local _, _, hrp = getCharacter()
+    local savedCFrame = hrp and hrp.CFrame
+
+    tweenHRPTo(POWER_REBOOT_STAND, 0.15)
+    task.wait(0.2)
+
+    local prompt
+    for _ = 1, 25 do
+        if not isComputerPowerOffline() then
+            lastPowerReboot = tick()
+            powerOffline = false
+            if afterSuccess then
+                afterSuccess()
+            elseif savedCFrame then
+                tweenHRPToCFrame(savedCFrame, 0.15)
+            end
+            return true
+        end
+        stayAtPowerStand()
+        prompt = findRebootPrompt()
+        if prompt then
+            break
+        end
+        task.wait(0.2)
     end
 
-    local prompt = findRebootPrompt()
-    if not prompt or not getStandCFrame(prompt, 2.5) then
+    if not prompt then
+        return false
+    end
+
+    local steps = 0
+    while isComputerPowerOffline() and prompt.Parent and steps < 30 do
+        stayAtPowerStand()
+        fireProximityPrompt(prompt)
+        task.wait(0.25)
+        if not prompt.Parent then
+            prompt = findRebootPrompt()
+            if not prompt then
+                break
+            end
+        end
+        steps += 1
+    end
+
+    if not isComputerPowerOffline() then
+        lastPowerReboot = tick()
+        powerOffline = false
+        task.wait(0.35)
+        if afterSuccess then
+            afterSuccess()
+        elseif savedCFrame then
+            tweenHRPToCFrame(savedCFrame, 0.15)
+        end
+        return true
+    end
+    return false
+end
+
+local function startPowerReboot(afterSuccess)
+    if powerRebootBusy or moveBusy or ammoRefillBusy then
         return
     end
 
@@ -2120,18 +2456,7 @@ local function tryPowerReboot(now)
     moveBusyStartedAt = tick()
     task.spawn(function()
         pcall(function()
-            local _, _, hrp = getCharacter()
-            local savedCFrame = hrp and hrp.CFrame
-            tweenToTarget(prompt, 2.5)
-            task.wait(2)
-            if prompt.Parent and fireProximityPrompt(prompt) then
-                lastPowerReboot = tick()
-                powerOffline = false
-                task.wait(0.6)
-                if savedCFrame then
-                    tweenHRPToCFrame(savedCFrame)
-                end
-            end
+            executePowerReboot(afterSuccess)
         end)
         moveBusy = false
         moveBusyStartedAt = 0
@@ -2144,25 +2469,6 @@ local function getNormalStorage()
     return ws
         and ws:FindFirstChild("Storage")
         and ws.Storage:FindFirstChild("NormalStorage")
-end
-
-local function getDisasterStorage()
-    local ws = getWorkspaceScriptable()
-    return ws
-        and ws:FindFirstChild("Storage")
-        and ws.Storage:FindFirstChild("DisasterStorage")
-end
-
-local function isComputerPowerOffline()
-    if powerOffline then
-        return true
-    end
-
-    local ws = getWorkspaceScriptable()
-    local computers = ws and ws:FindFirstChild("Objects") and ws.Objects:FindFirstChild("Computers")
-    local computerPower = computers and computers:FindFirstChild("ComputerPower")
-    local highlight = computerPower and computerPower:FindFirstChild("Highlight")
-    return highlight and highlight.Enabled == true
 end
 
 local function getPrisonerSpawnCFrame()
@@ -2181,86 +2487,41 @@ local function returnToFarmArea()
     end
 end
 
-local function sinkFarmNPC(npc)
-    if sinkingNPCs[npc] then
-        return
-    end
-
-    local root = npc:FindFirstChild("HumanoidRootPart")
-    local humanoid = npc:FindFirstChildOfClass("Humanoid")
-    if not root then
-        return
-    end
-
-    sinkingNPCs[npc] = true
-
-    if humanoid then
-        humanoid.WalkSpeed = 0
-        humanoid.PlatformStand = true
-    end
-
-    task.spawn(function()
-        local steps = 0
-        while npc.Parent and root.Parent and root.Position.Y > -100 and steps < 50 do
-            root.CFrame = root.CFrame - Vector3.new(0, FARM_NPC_SINK_SPEED, 0)
-            task.wait(0.1)
-            steps += 1
-        end
-        sinkingNPCs[npc] = nil
-    end)
-end
-
 local function processFarmSinkNPCs()
-    local disasterStorage = getDisasterStorage()
-    if disasterStorage then
-        for _, npc in disasterStorage:GetChildren() do
-            if ENEMY_NAMES[npc.Name] then
-                sinkFarmNPC(npc)
-            end
-        end
-    end
-
     local normalStorage = getNormalStorage()
     if not normalStorage then
         return
     end
 
-    local hostileFolder = normalStorage:FindFirstChild("HostileNPCWorkspace")
-    if hostileFolder then
-        for _, npc in hostileFolder:GetChildren() do
-            if isPassenger(npc) then
-                sinkFarmNPC(npc)
+    local function speedFolder(folder)
+        if not folder then
+            return
+        end
+        for _, npc in folder:GetChildren() do
+            if not isPassenger(npc) then
+                continue
             end
-        end
-    end
 
-    local npcFolder = normalStorage:FindFirstChild("NPCWorkspace")
-    if not npcFolder then
-        return
-    end
+            local _, _, sv = getNPCProps(npc)
+            if sv and isNpcLockedUp(sv) then
+                continue
+            end
 
-    for _, npc in npcFolder:GetChildren() do
-        if sinkingNPCs[npc] or not isPassenger(npc) then
-            continue
-        end
-
-        local _, rv = getNPCProps(npc)
-        if not rv then
-            continue
-        end
-
-        local fakePassport = rv:FindFirstChild("FakePassport")
-        local contraband = rv:FindFirstChild("ContrabandReal")
-        if (fakePassport and fakePassport.Value == true)
-            or (contraband and contraband.Value == true) then
-            sinkFarmNPC(npc)
-        else
             local humanoid = npc:FindFirstChildOfClass("Humanoid")
-            if humanoid then
+            if not humanoid then
+                continue
+            end
+
+            if arrestFocusNpc == npc then
+                humanoid.WalkSpeed = 0
+            else
                 humanoid.WalkSpeed = FARM_GOOD_NPC_SPEED
             end
         end
     end
+
+    speedFolder(normalStorage:FindFirstChild("NPCWorkspace"))
+    speedFolder(normalStorage:FindFirstChild("HostileNPCWorkspace"))
 end
 
 local function ensureAtFarmStand()
@@ -2288,13 +2549,33 @@ local function ensureAtFarmStand()
 end
 
 local function fireFarmPodiumPrompts()
-    local mdPrompt = getPodiumPrompt("ButtonPodiumMD", true)
-    local idPrompt = getPodiumPrompt("ButtonPodiumID", true)
-    if mdPrompt then
-        fireProximityPrompt(mdPrompt)
+    local _, _, hrp = getCharacter()
+    local savedCFrame = hrp and hrp.CFrame
+
+    local function handlePodium(podiumName, minPoint, maxPoint, shouldDeny, stage)
+        local npc = getPassengerNearPodium(podiumName, CHECKPOINT_PODIUM_RANGE, minPoint, maxPoint)
+        local deny = npc and canHandleCheckpoint(npc, stage) and shouldDeny(npc)
+        local prompt = getPodiumPrompt(podiumName, not deny)
+        if prompt then
+            fireProximityPrompt(prompt)
+        end
+
+        if deny and npc and autoOn("AutoArrest") and shouldCuffPassenger(npc) and not pendingDeny[npc] then
+            pendingDeny[npc] = {
+                stage = stage,
+                savedCFrame = savedCFrame,
+                at = tick(),
+            }
+        elseif npc and not deny and canHandleCheckpoint(npc, stage) then
+            markCheckpointHandled(npc, stage)
+        end
     end
-    if idPrompt then
-        fireProximityPrompt(idPrompt)
+
+    if autoOn("AutoMetalDetector") then
+        handlePodium("ButtonPodiumMD", CHECKPOINT_MD_POINT, CHECKPOINT_MD_POINT, shouldDenyAtMD, "md")
+    end
+    if autoOn("AutoIDCheck") then
+        handlePodium("ButtonPodiumID", CHECKPOINT_ID_MIN, 99, shouldDenyAtID, "id")
     end
 end
 
@@ -2313,40 +2594,18 @@ local function processFarmCheckpoints()
 end
 
 local function tryFarmPowerReboot(now)
-    if now - lastPowerReboot < 2 or powerRebootBusy or moveBusy then
+    if not autoOn("AutoPowerReboot") or now - lastPowerReboot < 2 then
         return
     end
-
-    local prompt = findRebootPrompt()
-    if not prompt then
-        return
+    if shouldUseFarmStand() then
+        startPowerReboot(returnToFarmArea)
+    else
+        startPowerReboot(nil)
     end
-
-    powerRebootBusy = true
-    moveBusy = true
-    moveBusyStartedAt = tick()
-    task.spawn(function()
-        pcall(function()
-            tweenToTarget(prompt, 2.5)
-            task.wait(0.3)
-
-            while isComputerPowerOffline() and prompt.Parent do
-                fireProximityPrompt(prompt)
-                task.wait(0.3)
-            end
-
-            lastPowerReboot = tick()
-            powerOffline = false
-            returnToFarmArea()
-        end)
-        powerRebootBusy = false
-        moveBusy = false
-        moveBusyStartedAt = 0
-    end)
 end
 
 local function tryFarmFireExtinguisher(now, fires)
-    if now - lastExtinguisher < 2 or fireExtinguishBusy or moveBusy then
+    if not autoOn("AutoFireExtinguisher") or now - lastExtinguisher < 2 or fireExtinguishBusy or moveBusy then
         return
     end
 
@@ -2415,7 +2674,37 @@ local function runFarmAutomation(now)
         moveBusyStartedAt = 0
     end
 
-    processFarmSinkNPCs()
+    processFarmDisasterCombat(now)
+
+    local gun = findGun()
+    local _, ammoValue = getGunAmmoValue(gun)
+    if gun and ammoValue <= 0 then
+        tryAmmoRefill(now)
+    end
+
+    if getActiveBoss() then
+        if autoOn("AutoReload") then
+            tryAutoReload()
+        end
+        return
+    end
+
+    processPendingDeny()
+    if useHostileCaptureChain() then
+        scanHostilesForCapture()
+        processHostileCapture()
+    end
+
+    if shouldUseFarmStand() or autoOn("AutoArrest") then
+        processFarmSinkNPCs()
+    end
+
+    if hasBlockingThreats() or moveBusy or checkpointBusy then
+        if autoOn("AutoReload") then
+            tryAutoReload()
+        end
+        return
+    end
 
     if isComputerPowerOffline() then
         tryFarmPowerReboot(now)
@@ -2423,7 +2712,7 @@ local function runFarmAutomation(now)
     end
 
     local fires = getActiveFires()
-    if #fires > 0 then
+    if autoOn("AutoFireExtinguisher") and #fires > 0 then
         tryFarmFireExtinguisher(now, fires)
         return
     end
@@ -2433,42 +2722,9 @@ local function runFarmAutomation(now)
         lastLuggage = now
     end
 
-    processFarmCheckpoints()
-end
-
-local function processCheckpointStage(stage, podiumName, minPoint, maxPoint)
-    if checkpointBusy or moveBusy then
-        return false
+    if shouldUseFarmStand() then
+        processFarmCheckpoints()
     end
-
-    local npc = getPassengerNearPodium(podiumName, CHECKPOINT_PODIUM_RANGE, minPoint, maxPoint)
-    if not npc or not canHandleCheckpoint(npc, stage) then
-        return false
-    end
-
-    local deny
-    if stage == "md" then
-        deny = shouldDenyAtMD(npc)
-    else
-        deny = shouldDenyAtID(npc)
-    end
-
-    if pressPodium(podiumName, not deny, npc, stage) then
-        if not pendingDeny[npc] then
-            markCheckpointHandled(npc, stage)
-        end
-        return true
-    end
-
-    return false
-end
-
-local function processMetalDetectorAuto()
-    processCheckpointStage("md", "ButtonPodiumMD", CHECKPOINT_MD_POINT, CHECKPOINT_MD_POINT)
-end
-
-local function processIDCheckAuto()
-    processCheckpointStage("id", "ButtonPodiumID", CHECKPOINT_ID_MIN, 99)
 end
 
 local function isInsideBossFire(hrp, firePart)
@@ -2480,17 +2736,6 @@ local function isInsideBossFire(hrp, firePart)
     local half = firePart.Size * 0.5
     return math.abs(localPos.X) <= half.X + BOSS_FIRE_DODGE_PADDING
         and math.abs(localPos.Z) <= half.Z + BOSS_FIRE_DODGE_PADDING
-end
-
-local function getActiveBoss()
-    for _, inst in Workspace:GetDescendants() do
-        if inst.Name == "BossNPC" and inst:IsA("Model") then
-            local hum = inst:FindFirstChildOfClass("Humanoid")
-            if hum and hum.Health > 0 and hum.MaxHealth < math.huge then
-                return inst
-            end
-        end
-    end
 end
 
 local function getThreateningBossFire(hrp)
@@ -2586,6 +2831,9 @@ local function tryCombatRetreat()
     if not Settings.CombatRetreat or retreatBusy or moveBusy or checkpointBusy then
         return
     end
+    if getActiveBoss() then
+        return
+    end
 
     local _, hum = getCharacter()
     if not hum or hum.Health > Settings.RetreatHealth then
@@ -2619,75 +2867,9 @@ end
         moveBusyStartedAt = 0
     end
 
-    if Settings.AutoDoEverything then
-        runFarmAutomation(now)
-        return
-    end
-
-    processPendingDeny()
-
-    if useHostileCaptureChain() then
-        scanHostilesForCapture()
-        processHostileCapture()
-    end
-
-    processDisasterCombat(now)
+    runFarmAutomation(now)
     tryBossFireDodge()
-
-    local threatsBlocking = hasBlockingThreats() or moveBusy or checkpointBusy
-
     tryCombatRetreat()
-
-    if threatsBlocking then
-        if autoOn("AutoReload") then
-            tryAutoReload()
-        end
-        return
-    end
-
-    if autoOn("AutoMetalDetector") and not checkpointBusy then
-        processMetalDetectorAuto()
-    end
-
-    if autoOn("AutoIDCheck") and not checkpointBusy then
-        processIDCheckAuto()
-    end
-
-    tryPowerReboot(now)
-    tryAmmoRefill(now)
-    tryFireExtinguisher(now)
-
-    if not useHostileCaptureChain() and autoOn("AutoTaser") and now - lastTaser >= Settings.ActionCooldown then
-        local target = getNearestPassenger(function(inst)
-            if shouldTaserNPC(inst) then
-                return true, classifyNPC(inst)
-            end
-            return false
-        end, Settings.TaserRange)
-        if target then
-            fireTaserAt(target)
-            lastTaser = now
-        end
-    end
-
-    if not useHostileCaptureChain() and autoOn("AutoArrest") and now - lastArrest >= Settings.ActionCooldown then
-        local target = getNearestPassenger(function(inst)
-            return shouldRoamingArrestNPC(inst)
-        end, Settings.ArrestRange)
-        if target then
-            fireArrestAt(target)
-            lastArrest = now
-        end
-    end
-
-    if autoOn("AutoLuggage") and now - lastLuggage >= Settings.ActionCooldown then
-        processLuggageWorkspace()
-        lastLuggage = now
-    end
-
-    if autoOn("AutoReload") then
-        tryAutoReload()
-    end
     end
 end)()
 
@@ -2840,7 +3022,7 @@ local function buildWebhookPayload()
                 },
                 fields = fields,
                 footer = {
-                    text = "Samuraa1 Hub • Secure the Airport v1.0.0",
+                    text = "Samuraa1 Hub • Secure the Airport v2.0.0",
                 },
                 timestamp = getWebhookTimestamp(),
             },
@@ -3115,8 +3297,12 @@ local applyThirdPerson
                 hum.WalkSpeed = Settings.RunSpeedValue
             end
         end
-        applyPlayerMods()
-        applyFOV()
+        if Settings.WalkSpeed or Settings.JumpPower then
+            applyPlayerMods()
+        end
+        if Settings.CustomFOV then
+            applyFOV()
+        end
 
         if Settings.Noclip then
             local char = plr.Character
@@ -3517,7 +3703,7 @@ end
 
     local Window = Library:Window({
     Name = "Samuraa1 Hub",
-    SubName = "Secure the Airport | v1.0.0",
+    SubName = "Secure the Airport | v2.0.0",
     Logo = "97594400820219",
     MobileScale = UserInputService.TouchEnabled and 0.72 or nil,
 })
@@ -3571,19 +3757,19 @@ end
 Window:Category("Game")
 Window:TabDivider()
 
-local ESPPage = Window:Page({ Name = "ESP", Icon = "eye" })
 local AutoPage = Window:Page({ Name = "Automation", Icon = "bot" })
+local ESPPage = Window:Page({ Name = "ESP", Icon = "eye" })
 local WebhookPage = Window:Page({ Name = "Webhook", Icon = "webhook" })
 local VisualsPage = Window:Page({ Name = "Visuals", Icon = "sun" })
-local LocalPage = Window:Page({ Name = "Local Player", Icon = "user-round" })
+local LocalPage = Window:Page({ Name = "Player", Icon = "user-round" })
 local ServerPage = Window:Page({ Name = "Server", Icon = "globe" })
 
 if LobbyPage then
     DashPage:AddCard({ Name = "LOBBY", Description = "Party, classes, rewards", Icon = "plane", Tab = LobbyPage })
 end
 
-DashPage:AddCard({ Name = "ESP", Description = "Passengers, bags, disasters", Icon = "eye", Tab = ESPPage })
 DashPage:AddCard({ Name = "AUTOMATION", Description = "Full auto, checkpoints, combat", Icon = "bot", Tab = AutoPage })
+DashPage:AddCard({ Name = "ESP", Description = "Passengers, bags, disasters", Icon = "eye", Tab = ESPPage })
 DashPage:AddCard({ Name = "WEBHOOK", Description = "Discord reports", Icon = "webhook", Tab = WebhookPage })
 DashPage:AddCard({ Name = "VISUALS", Description = "Lighting and camera", Icon = "sun", Tab = VisualsPage })
 DashPage:AddCard({ Name = "LOCAL", Description = "Movement and player", Icon = "user-round", Tab = LocalPage })
@@ -3833,7 +4019,7 @@ FullAutoSection:Toggle({
     Name = "Auto Do Everything",
     Flag = "AutoDoEverything",
     Default = false,
-    Tooltip = "Farm mode: sink threats, tween to stand, spam MD+ID checkpoints, handle fire/power",
+    Tooltip = "Farm mode: jail Fake ID/contraband, shoot disaster criminals from stand, MD+ID, fire/power",
     Callback = function(value) Settings.AutoDoEverything = value end,
 })
 
@@ -3970,7 +4156,6 @@ CheckpointSection:Toggle({
 RangeSection:Slider({ Name = "Taser Range", Flag = "TaserRange", Min = 5, Max = 20, Default = 15, Tooltip = "How close a passenger must be to taser", Callback = function(v) Settings.TaserRange = v end })
 RangeSection:Slider({ Name = "Arrest Range", Flag = "ArrestRange", Min = 5, Max = 20, Default = 10, Tooltip = "How close a passenger must be to arrest", Callback = function(v) Settings.ArrestRange = v end })
 RangeSection:Slider({ Name = "Gun Range", Flag = "GunRange", Min = 20, Max = 200, Default = 120, Tooltip = "How far you can shoot disaster enemies", Callback = function(v) Settings.GunRange = v end })
-RangeSection:Slider({ Name = "Action Cooldown", Flag = "ActionCooldown", Min = 0.1, Max = 1.5, Default = 0.35, Tooltip = "Delay between manual auto actions", Callback = function(v) Settings.ActionCooldown = v end })
 
 local WebhookSection = WebhookPage:Section({ Name = "Link", Icon = "webhook", Side = 1, LayoutOrder = 1 })
 local WebhookFieldsSection = WebhookPage:Section({ Name = "What to Include", Icon = "list", Side = 1, LayoutOrder = 2 })
@@ -4067,15 +4252,6 @@ SpeedSection:Slider({ Name = "Sprint Speed", Flag = "RunSpeedValue", Min = 20, M
 SpeedSection:Toggle({ Name = "Jump Power", Flag = "JumpPower", Default = false, Tooltip = "Set a custom jump height", Callback = function(v) Settings.JumpPower = v end })
 SpeedSection:Slider({ Name = "Jump Value", Flag = "JumpPowerValue", Min = 50, Max = 150, Default = 60, Tooltip = "Jump power when enabled", Callback = function(v) Settings.JumpPowerValue = v end })
 SpeedSection:Toggle({ Name = "Noclip", Flag = "Noclip", Default = false, Tooltip = "Walk through walls and objects", Callback = function(v) Settings.Noclip = v end })
-SpeedSection:Slider({
-    Name = "Tween Teleport",
-    Flag = "TweenTeleportDuration",
-    Min = 0.15,
-    Max = 1.5,
-    Default = 0.4,
-    Tooltip = "How fast automated movement teleports you",
-    Callback = function(v) Settings.TweenTeleportDuration = v end,
-})
 
 LocalMiscSection:Toggle({
     Name = "Third Person",
