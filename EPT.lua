@@ -102,7 +102,7 @@ local GAME_ID = 3754482795
 local PLACE_ID = 10253248401
 
 if game.GameId ~= GAME_ID and game.PlaceId ~= PLACE_ID then
-    game.Players.LocalPlayer:Kick("Game Not Supported. Only Elemental Powers Tycoon Is Supported.")
+    game.Players.LocalPlayer:Kick("Game Not Supported. Only Elemental Powers Tycoon Is Supported")
     return
 end
 
@@ -167,7 +167,6 @@ local DISCORD_JOIN_URL = "https://pastebin.com/raw/iYvRJrSf"
 local BOOSTFPS_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/BoostFPS.lua"
 local CHANGELOGS_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/EPT-Changelogs.lua"
 local SCRIPT_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/EPT.lua"
-local FEEDBACK_WEBHOOK = ""
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 15)
 local DoMagic = Remotes and Remotes:FindFirstChild("DoMagic")
@@ -202,9 +201,13 @@ local lastEquipSpell = 0
 local webhookAutoLoopStarted = false
 local moveBusy = false
 local hillBusy = false
+local hillHolding = false
+local hillCapturePos = nil
 local hillReturnCFrame = nil
 local originalCollisions = {}
+local noclipConn
 local originalLighting = {}
+local setNoclip
 local flying = false
 local flyConnection
 local flyBodyGyro
@@ -346,48 +349,6 @@ local function notify(title, description, duration)
     end
 end
 
-local function getExecutorName()
-    local ok, a = pcall(function()
-        if typeof(identifyexecutor) == "function" then return identifyexecutor() end
-    end)
-    if ok and type(a) == "string" and a ~= "" then return a end
-    local ok2, b = pcall(function()
-        if typeof(getexecutorname) == "function" then return getexecutorname() end
-    end)
-    if ok2 and type(b) == "string" and b ~= "" then return b end
-    return "Unknown"
-end
-
-local function sendFeedback(message)
-    if type(FEEDBACK_WEBHOOK) ~= "string" or FEEDBACK_WEBHOOK == "" then
-        return false, "Webhook not configured"
-    end
-    local payload = HttpService:JSONEncode({
-        embeds = {{
-            title = "Elemental Powers Tycoon Feedback",
-            description = message,
-            color = 5814783,
-            fields = {
-                { name = "User", value = plr.Name, inline = true },
-                { name = "User ID", value = tostring(plr.UserId), inline = true },
-                { name = "Executor", value = getExecutorName(), inline = true },
-            },
-            footer = { text = "Samuraa1 Hub Feedback" },
-        }},
-        username = "Feedback",
-    })
-    local ok = pcall(function()
-        if typeof(request) == "function" then
-            request({ Url = FEEDBACK_WEBHOOK, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload })
-        elseif typeof(syn) == "table" and typeof(syn.request) == "function" then
-            syn.request({ Url = FEEDBACK_WEBHOOK, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload })
-        else
-            HttpService:PostAsync(FEEDBACK_WEBHOOK, payload, Enum.HttpContentType.ApplicationJson)
-        end
-    end)
-    return ok
-end
-
 local function autoOn(key)
     if Settings.FullAuto then
         if key == "AutoCollect"
@@ -491,6 +452,46 @@ local function getHillPart()
     return cp:FindFirstChild("Radius") or cp:FindFirstChild("Point")
 end
 
+local function getHillFloorYs(x, z)
+    local params = RaycastParams.new()
+    params.FilterType = Enum.RaycastFilterType.Exclude
+    local ignore = {}
+    local cp = Workspace:FindFirstChild("Control_Point")
+    if cp then ignore[1] = cp end
+    local char = plr.Character
+    if char then ignore[#ignore + 1] = char end
+    params.FilterDescendantsInstances = ignore
+    local origin = Vector3.new(x, 90, z)
+    local floors = {}
+    for _ = 1, 8 do
+        local hit = Workspace:Raycast(origin, Vector3.new(0, -220, 0), params)
+        if not hit then break end
+        local inst = hit.Instance
+        if hit.Normal.Y > 0.65 and inst:IsA("BasePart") and math.max(inst.Size.X, inst.Size.Y, inst.Size.Z) > 80 then
+            floors[#floors + 1] = hit.Position.Y
+        end
+        ignore[#ignore + 1] = inst
+        params.FilterDescendantsInstances = ignore
+        origin = hit.Position - Vector3.new(0, 0.35, 0)
+    end
+    return floors
+end
+
+local function getHillCapturePos()
+    local hill = getHillPart()
+    if not hill then return nil end
+    local floors = getHillFloorYs(hill.Position.X, hill.Position.Z)
+    local surfaceY = floors[1] or hill.Position.Y
+    -- The center is solid grass stacked downward. Standing on the first
+    -- underground hit puts the body inside that mesh, and physics then
+    -- ejects the character upward. Stay below the visible surface instead.
+    local standY = surfaceY - 8
+    if standY > hill.Position.Y - 4 then
+        standY = hill.Position.Y - 8
+    end
+    return Vector3.new(hill.Position.X, standY, hill.Position.Z)
+end
+
 local function getHillOwner()
     local cp = Workspace:FindFirstChild("Control_Point")
     if not cp then return nil end
@@ -503,6 +504,12 @@ end
 
 local function isHillOwnedByMe()
     return getHillOwner() == plr.Name
+end
+
+local function horizontalDist(a, b)
+    local dx = a.X - b.X
+    local dz = a.Z - b.Z
+    return math.sqrt(dx * dx + dz * dz)
 end
 
 local function getCursorPos()
@@ -580,14 +587,17 @@ end
 
 local TWEEN_SPEED = 200
 
-local function tweenTo(pos)
+local function tweenTo(pos, yOffset)
     local _, _, hrp = getCharacter()
     if not hrp or typeof(pos) ~= "Vector3" then return false end
     if moveBusy then return false end
     moveBusy = true
+    if yOffset == nil then
+        yOffset = 3
+    end
     local ok = pcall(function()
-        local goal = CFrame.new(pos + Vector3.new(0, 3, 0))
-        local dist = (hrp.Position - pos).Magnitude
+        local goal = CFrame.new(pos + Vector3.new(0, yOffset, 0))
+        local dist = (hrp.Position - goal.Position).Magnitude
         if dist <= 7 then
             hrp.CFrame = goal
             return
@@ -679,14 +689,21 @@ local function equipMysterySpell(spellName)
     return ok
 end
 
+local spellCategoryByName = {}
+
 local function getSpellInfo(tool)
     if not tool or not tool:IsA("Tool") then return nil end
+    local cached = spellCategoryByName[tool.Name]
+    if cached then
+        return cached, tool.Name
+    end
     local magic = ReplicatedStorage:FindFirstChild("Magic")
     if not magic then return nil end
     local spell = magic:FindFirstChild(tool.Name, true)
     if not spell then return nil end
     local category = spell.Parent
     if not category or category == magic then return nil end
+    spellCategoryByName[tool.Name] = category.Name
     return category.Name, tool.Name
 end
 
@@ -742,14 +759,18 @@ local function getEnemyModels()
     local list = {}
     local chars = Workspace:FindFirstChild("Characters")
     local enemies = chars and chars:FindFirstChild("Enemies")
-    if enemies then
-        for _, model in enemies:GetDescendants() do
-            if model:IsA("Model") then
-                local hum = model:FindFirstChildOfClass("Humanoid")
-                local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
-                if hum and hrp and hum.Health > 0 then
-                    table.insert(list, { model = model, hum = hum, hrp = hrp, isBoss = model.Name:lower():find("boss") ~= nil or model.Name == "Boss" })
-                end
+    if not enemies then return list end
+    for _, model in enemies:GetChildren() do
+        if model:IsA("Model") then
+            local hum = model:FindFirstChildOfClass("Humanoid")
+            local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
+            if hum and hrp and hum.Health > 0 then
+                table.insert(list, {
+                    model = model,
+                    hum = hum,
+                    hrp = hrp,
+                    isBoss = model.Name:lower():find("boss") ~= nil or model.Name == "Boss",
+                })
             end
         end
     end
@@ -779,38 +800,32 @@ end
 local function nearestTarget(preferBoss)
     local _, _, hrp = getCharacter()
     if not hrp then return nil end
-    local best, bestDist
-    local range = 1e9
+    local boss, bossDist
+    local anyTarget, anyDist
 
-    local function consider(entry)
+    local function nearer(entry, current, currentDist)
         local dist = (entry.hrp.Position - hrp.Position).Magnitude
-        if dist <= range and (not bestDist or dist < bestDist) then
-            if preferBoss and not entry.isBoss and best and best.isBoss then
-                return
-            end
-            best = entry
-            bestDist = dist
+        if not currentDist or dist < currentDist then
+            return entry, dist
         end
+        return current, currentDist
     end
 
     for _, e in getEnemyModels() do
-        if preferBoss then
-            if e.isBoss then consider(e) end
-        else
-            consider(e)
+        if e.isBoss then
+            boss, bossDist = nearer(e, boss, bossDist)
         end
+        anyTarget, anyDist = nearer(e, anyTarget, anyDist)
     end
-    if preferBoss and not best then
-        for _, e in getEnemyModels() do
-            consider(e)
-        end
-    end
-    if Settings.AttackPlayers then
+    if Settings.AttackPlayers and not (preferBoss and boss) then
         for _, p in getPlayerTargets() do
-            consider(p)
+            anyTarget, anyDist = nearer(p, anyTarget, anyDist)
         end
     end
-    return best, bestDist
+    if preferBoss and boss then
+        return boss, bossDist
+    end
+    return anyTarget, anyDist
 end
 
 -- ===================== AUTOMATION =====================
@@ -852,6 +867,52 @@ local function doAutoBuy()
     end
 end
 
+local HILL_WALK_BIND = "EPT_HillWalk"
+
+local hillWalkAngle = 0
+
+local function stopHillWalk()
+    pcall(function()
+        RunService:UnbindFromRenderStep(HILL_WALK_BIND)
+    end)
+    local _, hum, hrp = getCharacter()
+    if hum then
+        hum:Move(Vector3.zero, false)
+        if not Settings.Fly then
+            hum.PlatformStand = false
+        end
+    end
+    if hrp then
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+    end
+    local ft = firetouchinterest or (getgenv and getgenv().firetouchinterest)
+    local hill = getHillPart()
+    if typeof(ft) == "function" and hrp and hill then
+        pcall(ft, hrp, hill, 1)
+    end
+end
+
+local function startHillWalk()
+    pcall(function()
+        RunService:UnbindFromRenderStep(HILL_WALK_BIND)
+    end)
+    hillWalkAngle = 0
+    RunService:BindToRenderStep(HILL_WALK_BIND, Enum.RenderPriority.Camera.Value + 1, function()
+        if not hillHolding or not hillCapturePos then return end
+        local _, hum, hrp = getCharacter()
+        if not hrp then return end
+        hillWalkAngle += 0.07
+        local pos = hillCapturePos + Vector3.new(math.cos(hillWalkAngle) * 6, 0, math.sin(hillWalkAngle) * 6)
+        hrp.AssemblyLinearVelocity = Vector3.zero
+        hrp.AssemblyAngularVelocity = Vector3.zero
+        hrp.CFrame = CFrame.new(pos)
+        if hum then
+            hum.PlatformStand = true
+        end
+    end)
+end
+
 local function doAutoHill()
     if not autoOn("AutoHill") then return end
     if hillBusy then return end
@@ -863,47 +924,70 @@ local function doAutoHill()
     end
 
     local hill = getHillPart()
+    local capturePos = getHillCapturePos()
     local _, _, hrp = getCharacter()
-    if not hill or not hrp then return end
+    if not hill or not capturePos or not hrp then return end
 
-    lastHill = os.clock()
     hillBusy = true
-    autoPhase = "Capturing Hill"
+    hillCapturePos = capturePos
+    autoPhase = "Capturing Hill (Under)"
     hillReturnCFrame = hrp.CFrame
+
+    local hadNoclip = Settings.Noclip
+    Settings.Noclip = true
+    setNoclip(true)
 
     task.spawn(function()
         local ok, err = pcall(function()
-            tweenTo(hill.Position)
-            local deadline = os.clock() + 8
-            while os.clock() < deadline do
-                if isHillOwnedByMe() then
-                    break
-                end
+            local waitUntil = os.clock() + 3
+            while moveBusy and os.clock() < waitUntil do
+                task.wait(0.1)
+            end
+            tweenTo(capturePos, 0)
+            local _, _, hrpNow = getCharacter()
+            if hrpNow and (hrpNow.Position - capturePos).Magnitude > 12 then
+                hrpNow.AssemblyLinearVelocity = Vector3.zero
+                hrpNow.CFrame = CFrame.new(capturePos)
+            end
+            -- Stay noclip. Turning collision on inside the grass launches the character into the sky.
+            hillHolding = true
+            startHillWalk()
+
+            local ft = firetouchinterest or (getgenv and getgenv().firetouchinterest)
+            local deadline = os.clock() + 18
+            while autoOn("AutoHill") and not isHillOwnedByMe() and os.clock() < deadline do
                 local _, _, hrp2 = getCharacter()
-                if hrp2 and (hrp2.Position - hill.Position).Magnitude > 10 then
-                    tweenTo(hill.Position)
-                else
-                    touchPart(hill)
+                if hrp2 and typeof(ft) == "function" then
+                    pcall(ft, hrp2, hill, 0)
                 end
                 task.wait(0.35)
             end
 
-            if isHillOwnedByMe() and hillReturnCFrame then
-                autoPhase = "Returning From Hill"
+            hillHolding = false
+            stopHillWalk()
+
+            if hillReturnCFrame then
+                autoPhase = isHillOwnedByMe() and "Returning From Hill" or "Hill Contest"
                 local _, _, hrp3 = getCharacter()
                 if hrp3 then
-                    local returnPos = hillReturnCFrame.Position
-                    tweenTo(returnPos)
+                    tweenTo(hillReturnCFrame.Position)
                 end
-                autoPhase = "Hill Secured"
-            else
-                autoPhase = "Hill Contest"
             end
+            autoPhase = isHillOwnedByMe() and "Hill Secured" or "Hill Contest"
         end)
         if not ok then
             warn("[EPT] AutoHill:", err)
         end
+        hillHolding = false
+        stopHillWalk()
+        Settings.Noclip = hadNoclip
+        if hadNoclip then
+            setNoclip(true)
+        else
+            setNoclip(false)
+        end
         hillBusy = false
+        hillCapturePos = nil
         hillReturnCFrame = nil
         lastHill = os.clock()
     end)
@@ -1068,20 +1152,24 @@ end
 
 local function runAutoTick()
     syncSettingsFromUI()
-    doAutoCollect()
-    doAutoBuy()
+    if not hillBusy then
+        doAutoCollect()
+        doAutoBuy()
+    end
     doAutoHill()
-    doAutoRebirth()
     doAutoStats()
     doAutoEquipRebirthSpell()
-    doAutoHeal()
-    doAutoChests()
-    doAutoBalloons()
-    if Settings.AutoBoss then
-        doAutoAttack(true)
-    end
-    if Settings.AutoAttack then
-        doAutoAttack(false)
+    if not hillBusy then
+        doAutoRebirth()
+        doAutoHeal()
+        doAutoChests()
+        doAutoBalloons()
+        if Settings.AutoBoss then
+            doAutoAttack(true)
+        end
+        if Settings.AutoAttack then
+            doAutoAttack(false)
+        end
     end
 end
 
@@ -1129,7 +1217,19 @@ local function setupAntiAfk()
     end)
 end
 
-local function setNoclip(enabled)
+local function hookNoclipPart(part)
+    if not part:IsA("BasePart") then return end
+    if originalCollisions[part] == nil then
+        originalCollisions[part] = part.CanCollide
+    end
+    part.CanCollide = false
+end
+
+setNoclip = function(enabled)
+    if noclipConn then
+        noclipConn:Disconnect()
+        noclipConn = nil
+    end
     if not enabled then
         for part, value in pairs(originalCollisions) do
             if part and part.Parent then part.CanCollide = value end
@@ -1139,11 +1239,13 @@ local function setNoclip(enabled)
     end
     local char = plr.Character
     if not char then return end
-    for _, part in char:GetDescendants() do
-        if part:IsA("BasePart") and originalCollisions[part] == nil then
-            originalCollisions[part] = part.CanCollide
-            part.CanCollide = false
+    noclipConn = char.DescendantAdded:Connect(function(inst)
+        if Settings.Noclip then
+            hookNoclipPart(inst)
         end
+    end)
+    for _, part in char:GetDescendants() do
+        hookNoclipPart(part)
     end
 end
 
@@ -1248,9 +1350,6 @@ RunService.Heartbeat:Connect(function()
                 hum.JumpHeight = Settings.JumpPowerValue / 3
             end)
         end
-    end
-    if Settings.Noclip then
-        setNoclip(true)
     end
     if Settings.CustomFOV and Workspace.CurrentCamera then
         Workspace.CurrentCamera.FieldOfView = Settings.FOVValue
@@ -1602,14 +1701,14 @@ local libraryOk, libraryErr = pcall(function()
     Library = loadRemoteLua("https://raw.githubusercontent.com/samuraa1/MentalityUI/main/Library.lua")
 end)
 if not libraryOk then
-    warn("[EPT Hub] Library load failed:", libraryErr)
+    warn("Library load failed:", libraryErr)
     pcall(function()
         task.wait(0.5)
         Library = loadRemoteLua("https://raw.githubusercontent.com/samuraa1/MentalityUI/main/Library.lua")
     end)
 end
 if not Library then
-    plr:Kick("Samuraa1 Hub failed to load UI library. Rejoin and execute again.")
+    plr:Kick("Samuraa1 Hub failed to load UI library. Rejoin and execute again")
     return
 end
 
@@ -1631,7 +1730,7 @@ end
 
     local Window = Library:Window({
         Name = "Samuraa1 Hub",
-        SubName = "Elemental Powers Tycoon | v1.0.0",
+        SubName = "Elemental Powers Tycoon | v1.1.0",
         Logo = "97594400820219",
         MobileScale = UserInputService.TouchEnabled and 0.72 or nil,
     })
@@ -1691,10 +1790,7 @@ end
     DashPage:AddCard({ Name = "COMBAT", Description = "Auto attack and boss farm", Icon = "swords", Tab = CombatPage })
     DashPage:AddCard({ Name = "POWERS", Description = "Equip any elemental power", Icon = "wand", Tab = PowersPage })
     DashPage:AddCard({ Name = "ESP", Description = "Players, enemies, chests", Icon = "eye", Tab = ESPPage })
-    DashPage:AddCard({ Name = "TELEPORTS", Description = "Tycoon, hill, arena", Icon = "map-pin", Tab = TeleportPage })
-    DashPage:AddCard({ Name = "LOCAL", Description = "Movement and player", Icon = "user-round", Tab = LocalPage })
     DashPage:AddCard({ Name = "WEBHOOK", Description = "Discord reports", Icon = "webhook", Tab = WebhookPage })
-    DashPage:AddCard({ Name = "SERVER", Description = "Hop, rejoin, JobId", Icon = "globe", Tab = ServerPage })
 
     -- Automation
     local FullAutoSection = AutoPage:Section({ Name = "Full Auto", Icon = "sparkles", Side = 1, LayoutOrder = 0 })
@@ -1730,69 +1826,26 @@ end
         Callback = function(v)
             Settings.FullAuto = v
             autoPhase = v and "Starting" or "Idle"
-            if v then notify("Full Auto", "Enabled — sit back.", 3) end
+            if v then notify("Full Auto", "Enabled — sit back", 3) end
         end,
     })
-    FullAutoSection:Keybind({
-        Name = "Full Auto Key",
-        Flag = "FullAutoKey",
-        Default = Enum.KeyCode.F,
-        SyncFlag = "FullAuto",
-        Callback = function()
-            if ToggleRefs.FullAuto then
-                ToggleRefs.FullAuto:Set(not Library.Flags.FullAuto)
-            end
-        end,
-    })
+    ToggleRefs.AutoCollect = TycoonSection:Toggle({ Name = "Auto Collect", Flag = "AutoCollect", Default = false, Tooltip = "Goes to your collector and picks up cash", Callback = function(v) Settings.AutoCollect = v end })
+    ToggleRefs.AutoBuy = TycoonSection:Toggle({ Name = "Auto Buy", Flag = "AutoBuy", Default = false, Tooltip = "Buys the cheapest button you can afford", Callback = function(v) Settings.AutoBuy = v end })
+    ToggleRefs.AutoHill = TycoonSection:Toggle({ Name = "Auto Capture Hill", Flag = "AutoHill", Default = false, Tooltip = "Holds you under the center until the hill is yours, then returns. Skips while you already own it", Callback = function(v) Settings.AutoHill = v end })
 
-    ToggleRefs.AutoCollect = TycoonSection:Toggle({ Name = "Auto Collect", Flag = "AutoCollect", Default = false, Tooltip = "Tween to collector and pick up cash", Callback = function(v) Settings.AutoCollect = v end })
-    TycoonSection:Keybind({
-        Name = "Auto Collect Key",
-        Flag = "AutoCollectKey",
-        Default = Enum.KeyCode.C,
-        SyncFlag = "AutoCollect",
-        Callback = function()
-            if ToggleRefs.AutoCollect then
-                ToggleRefs.AutoCollect:Set(not Library.Flags.AutoCollect)
-            end
-        end,
-    })
-    ToggleRefs.AutoBuy = TycoonSection:Toggle({ Name = "Auto Buy", Flag = "AutoBuy", Default = false, Tooltip = "Buy cheapest affordable buttons", Callback = function(v) Settings.AutoBuy = v end })
-    TycoonSection:Keybind({
-        Name = "Auto Buy Key",
-        Flag = "AutoBuyKey",
-        Default = Enum.KeyCode.B,
-        SyncFlag = "AutoBuy",
-        Callback = function()
-            if ToggleRefs.AutoBuy then
-                ToggleRefs.AutoBuy:Set(not Library.Flags.AutoBuy)
-            end
-        end,
-    })
-    ToggleRefs.AutoHill = TycoonSection:Toggle({ Name = "Auto Capture Hill", Flag = "AutoHill", Default = false, Tooltip = "Capture hill if not yours, then return. Skips while you already own it", Callback = function(v) Settings.AutoHill = v end })
-    TycoonSection:Keybind({
-        Name = "Auto Hill Key",
-        Flag = "AutoHillKey",
-        Default = Enum.KeyCode.H,
-        SyncFlag = "AutoHill",
-        Callback = function()
-            if ToggleRefs.AutoHill then
-                ToggleRefs.AutoHill:Set(not Library.Flags.AutoHill)
-            end
-        end,
-    })
-
-    ProgressSection:Toggle({ Name = "Auto Rebirth", Flag = "AutoRebirth", Default = false, Tooltip = "Rebirth when the Rebirth prompt appears (HUD % can be wrong)", Callback = function(v) Settings.AutoRebirth = v end })
+    ProgressSection:Toggle({ Name = "Auto Rebirth", Flag = "AutoRebirth", Default = false, Tooltip = "Rebirths when the rebirth button is ready. The HUD percent is not used", Callback = function(v) Settings.AutoRebirth = v end })
+    ProgressSection:Divider("Skill Points")
     ProgressSection:Toggle({ Name = "Auto Spend Skill Points", Flag = "AutoStats", Default = false, Tooltip = "Spend rebirth skill points", Callback = function(v) Settings.AutoStats = v end })
     ProgressSection:Dropdown({
         Name = "Stat Slot",
         Flag = "StatPriority",
         Items = { "1", "2", "3", "4" },
         Default = "1",
-        Tooltip = "Which skill point index to upgrade",
+        Tooltip = "Which of the 4 rebirth stats gets the points",
         Callback = function(v) Settings.StatPriority = tostring(v) end,
     })
-    ProgressSection:Toggle({ Name = "Auto Equip Rebirth Spell", Flag = "AutoEquipRebirthSpell", Default = false, Callback = function(v) Settings.AutoEquipRebirthSpell = v end })
+    ProgressSection:Divider("Rebirth Spell")
+    ProgressSection:Toggle({ Name = "Auto Equip Rebirth Spell", Flag = "AutoEquipRebirthSpell", Default = false, Tooltip = "Equips the selected rebirth spell once you have enough rebirths", Callback = function(v) Settings.AutoEquipRebirthSpell = v end })
 
     local spellNames = {}
     for _, s in REBIRTH_SPELLS do
@@ -1803,11 +1856,13 @@ end
         Flag = "SelectedRebirthSpell",
         Items = spellNames,
         Default = "Dark Flames",
+        Tooltip = "Rebirth spell to equip. Locked spells are skipped until you can use them",
         Callback = function(v) Settings.SelectedRebirthSpell = v end,
     })
     ProgressSection:Button({
         Name = "Equip Selected Spell",
         Icon = "wand",
+        Tooltip = "Equips the rebirth spell chosen above",
         Callback = function()
             if not MainRemote then return end
             pcall(function()
@@ -1817,19 +1872,21 @@ end
         end,
     })
 
-    WorldFarmSection:Toggle({ Name = "Auto Chests", Flag = "AutoChests", Default = false, Callback = function(v) Settings.AutoChests = v end })
-    WorldFarmSection:Toggle({ Name = "Auto Balloon Crates", Flag = "AutoBalloons", Default = false, Callback = function(v) Settings.AutoBalloons = v end })
-    WorldFarmSection:Toggle({ Name = "Auto Heal Pad", Flag = "AutoHeal", Default = false, Callback = function(v) Settings.AutoHeal = v end })
+    WorldFarmSection:Toggle({ Name = "Auto Chests", Flag = "AutoChests", Default = false, Tooltip = "Opens the nearest treasure chest", Callback = function(v) Settings.AutoChests = v end })
+    WorldFarmSection:Toggle({ Name = "Auto Balloon Crates", Flag = "AutoBalloons", Default = false, Tooltip = "Opens the nearest balloon crate", Callback = function(v) Settings.AutoBalloons = v end })
+    WorldFarmSection:Toggle({ Name = "Auto Heal Pad", Flag = "AutoHeal", Default = false, Tooltip = "Goes to your heal pad when health drops below 70%", Callback = function(v) Settings.AutoHeal = v end })
 
     -- Combat
     local CombatSection = CombatPage:Section({ Name = "Combat", Icon = "swords", Side = 1, LayoutOrder = 0 })
 
-    CombatSection:Toggle({ Name = "Auto Attack", Flag = "AutoAttack", Default = false, Tooltip = "Cast equipped magic at nearest target", Callback = function(v) Settings.AutoAttack = v end })
-    CombatSection:Toggle({ Name = "Auto Boss Farm", Flag = "AutoBoss", Default = false, Tooltip = "Prefer boss enemies", Callback = function(v) Settings.AutoBoss = v end })
-    CombatSection:Toggle({ Name = "Attack Players", Flag = "AttackPlayers", Default = false, Callback = function(v) Settings.AttackPlayers = v end })
+    CombatSection:Toggle({ Name = "Auto Attack", Flag = "AutoAttack", Default = false, Tooltip = "Casts your equipped spell at the nearest enemy", Callback = function(v) Settings.AutoAttack = v end })
+    CombatSection:Toggle({ Name = "Auto Boss Farm", Flag = "AutoBoss", Default = false, Tooltip = "Attacks the boss first. If there is no boss, attacks the nearest enemy", Callback = function(v) Settings.AutoBoss = v end })
+    CombatSection:Toggle({ Name = "Attack Players", Flag = "AttackPlayers", Default = false, Tooltip = "Auto Attack can also target other players", Callback = function(v) Settings.AttackPlayers = v end })
+    CombatSection:Divider("Manual")
     CombatSection:Button({
         Name = "Cast Once (cursor)",
         Icon = "crosshair",
+        Tooltip = "Fires the equipped spell once at your cursor",
         Callback = function()
             if fireMagicAt(getCursorPos()) then
                 notify("Combat", "Spell fired.", 2)
@@ -1857,7 +1914,7 @@ end
         Flag = "SelectedPowerElement",
         Items = MYSTERY_ELEMENTS,
         Default = Settings.SelectedPowerElement,
-        Tooltip = "Element category for mystery spell equip",
+        Tooltip = "Element whose spells show in the list below",
         Callback = function(v)
             Settings.SelectedPowerElement = v
             local spells = MYSTERY_POWERS[v] or {}
@@ -1878,7 +1935,7 @@ end
         Flag = "SelectedPowerSpell",
         Items = initialSpells,
         Default = Settings.SelectedPowerSpell,
-        Tooltip = "Spell to equip via equip_mystery_spell",
+        Tooltip = "Spell from the selected element",
         Callback = function(v)
             Settings.SelectedPowerSpell = v
         end,
@@ -1887,7 +1944,7 @@ end
     PowerEquipSection:Button({
         Name = "Equip Selected Power",
         Icon = "check",
-        Tooltip = "FireServer equip_mystery_spell",
+        Tooltip = "Equips the spell selected above",
         Callback = function()
             local spell = Settings.SelectedPowerSpell
             if Library and Library.Flags and Library.Flags.SelectedPowerSpell then
@@ -1905,7 +1962,7 @@ end
     PowerQuickSection:Button({
         Name = "Equip All From Element",
         Icon = "layers",
-        Tooltip = "Equip every power listed under the selected element",
+        Tooltip = "Equips every spell from the selected element",
         Callback = function()
             local element = Settings.SelectedPowerElement
             local spells = MYSTERY_POWERS[element]
@@ -1927,67 +1984,62 @@ end
     local ESPPlayers = ESPPage:Section({ Name = "Targets", Icon = "users", Side = 1, LayoutOrder = 0 })
     local ESPWorld = ESPPage:Section({ Name = "World", Icon = "map", Side = 2, LayoutOrder = 0 })
 
-    ESPPlayers:Toggle({ Name = "Player ESP", Flag = "PlayerESP", Default = true, Callback = function(v)
+    ESPPlayers:Toggle({ Name = "Player ESP", Flag = "PlayerESP", Default = true, Tooltip = "Highlights other players and shows their name", Callback = function(v)
         Settings.PlayerESP = v
         if not v then clearCache(playerESP) end
     end })
-    ESPPlayers:Toggle({ Name = "Enemy / Boss ESP", Flag = "EnemyESP", Default = true, Callback = function(v)
+    ESPPlayers:Toggle({ Name = "Enemy / Boss ESP", Flag = "EnemyESP", Default = true, Tooltip = "Highlights enemies and bosses with their health", Callback = function(v)
         Settings.EnemyESP = v
         if not v then clearCache(enemyESP) end
     end })
-    ESPPlayers:Toggle({ Name = "ESP Distance", Flag = "ESPDistance", Default = true, Callback = function(v) Settings.ESPDistance = v end })
-    ESPPlayers:Slider({ Name = "ESP Max Distance", Flag = "ESPMaxDistance", Min = 50, Max = 1000, Default = 400, Callback = function(v)
+    ESPPlayers:Divider("Distance")
+    ESPPlayers:Toggle({ Name = "ESP Distance", Flag = "ESPDistance", Default = true, Tooltip = "Shows how far each target is", Callback = function(v) Settings.ESPDistance = v end })
+    ESPPlayers:Slider({ Name = "ESP Max Distance", Flag = "ESPMaxDistance", Min = 50, Max = 1000, Default = 400, Tooltip = "Hides ESP farther than this", Callback = function(v)
         Settings.ESPMaxDistance = v
     end })
 
-    ESPWorld:Toggle({ Name = "Chest ESP", Flag = "ChestESP", Default = true, Callback = function(v) Settings.ChestESP = v end })
-    ESPWorld:Toggle({ Name = "Hill ESP", Flag = "HillESP", Default = true, Callback = function(v) Settings.HillESP = v end })
-    ESPWorld:Toggle({ Name = "Collector ESP", Flag = "CollectorESP", Default = false, Callback = function(v) Settings.CollectorESP = v end })
+    ESPWorld:Toggle({ Name = "Chest ESP", Flag = "ChestESP", Default = true, Tooltip = "Marks treasure chests", Callback = function(v) Settings.ChestESP = v end })
+    ESPWorld:Toggle({ Name = "Hill ESP", Flag = "HillESP", Default = true, Tooltip = "Marks the center hill", Callback = function(v) Settings.HillESP = v end })
+    ESPWorld:Toggle({ Name = "Collector ESP", Flag = "CollectorESP", Default = false, Tooltip = "Marks your cash collector", Callback = function(v) Settings.CollectorESP = v end })
 
     -- Teleports
     local TPMain = TeleportPage:Section({ Name = "Quick TP", Icon = "map-pin", Side = 1, LayoutOrder = 0 })
     local TPExtra = TeleportPage:Section({ Name = "Extras", Icon = "compass", Side = 2, LayoutOrder = 0 })
 
-    TPMain:Button({ Name = "TP Tycoon Spawn", Icon = "home", Callback = function()
+    TPMain:Button({ Name = "TP Tycoon Spawn", Icon = "home", Tooltip = "Teleports to your tycoon spawn", Callback = function()
         if tpToPart(getSpawnPart()) then notify("TP", "Tycoon spawn", 2) else notify("TP", "No tycoon found", 3) end
     end })
     TPMain:Keybind({
         Name = "TP Spawn Key",
         Flag = "TPSpawnKey",
         Default = Enum.KeyCode.T,
+        Tooltip = "Hotkey for TP Tycoon Spawn",
         Callback = function()
             if tpToPart(getSpawnPart()) then notify("TP", "Tycoon spawn", 2) end
         end,
     })
-    TPMain:Button({ Name = "TP Collector", Icon = "coins", Callback = function()
+    TPMain:Button({ Name = "TP Collector", Icon = "coins", Tooltip = "Teleports to your cash collector", Callback = function()
         if tpToPart(getCollectorPart()) then notify("TP", "Collector", 2) else notify("TP", "No collector", 3) end
     end })
-    TPMain:Button({ Name = "TP Hill", Icon = "flag", Callback = function()
+    TPMain:Divider("Map")
+    TPMain:Button({ Name = "TP Hill", Icon = "flag", Tooltip = "Teleports to the center hill", Callback = function()
         if tpToPart(getHillPart()) then notify("TP", "Control Point", 2) else notify("TP", "Hill missing", 3) end
     end })
-    TPMain:Keybind({
-        Name = "TP Hill Key",
-        Flag = "TPHillKey",
-        Default = Enum.KeyCode.Y,
-        Callback = function()
-            if tpToPart(getHillPart()) then notify("TP", "Control Point", 2) end
-        end,
-    })
-    TPMain:Button({ Name = "TP Ability Room", Icon = "sparkles", Callback = function()
+    TPMain:Button({ Name = "TP Ability Room", Icon = "sparkles", Tooltip = "Teleports to the ability room", Callback = function()
         local room = Workspace:FindFirstChild("AbilityRoom")
         local arrive = room and room:FindFirstChild("Arrive")
         if tpToPart(arrive) then notify("TP", "Ability Room", 2) end
     end })
 
-    TPExtra:Button({ Name = "TP Battle Arena", Icon = "swords", Callback = function()
+    TPExtra:Button({ Name = "TP Battle Arena", Icon = "swords", Tooltip = "Teleports to the battle arena", Callback = function()
         local arena = Workspace:FindFirstChild("BattleArena")
         if tpToPart(arena) then notify("TP", "Arena", 2) end
     end })
-    TPExtra:Button({ Name = "TP PvP Queue", Icon = "users", Callback = function()
+    TPExtra:Button({ Name = "TP PvP Queue", Icon = "users", Tooltip = "Teleports to the PvP queue", Callback = function()
         local q = Workspace:FindFirstChild("PvpQueue")
         if tpToPart(q) then notify("TP", "PvP Queue", 2) end
     end })
-    TPExtra:Button({ Name = "TP Nearest Chest", Icon = "box", Callback = function()
+    TPExtra:Button({ Name = "TP Nearest Chest", Icon = "box", Tooltip = "Teleports to the closest treasure chest", Callback = function()
         local treasure = Workspace:FindFirstChild("Treasure")
         local chests = treasure and treasure:FindFirstChild("Chests")
         local _, _, hrp = getCharacter()
@@ -2008,23 +2060,26 @@ end
     local VisualSection = LocalPage:Section({ Name = "Visuals", Icon = "sun", Side = 2, LayoutOrder = 0 })
     local MiscLocalSection = LocalPage:Section({ Name = "Misc", Icon = "settings", Side = 2, LayoutOrder = 1 })
 
-    SpeedSection:Toggle({ Name = "WalkSpeed", Flag = "WalkSpeed", Default = false, Callback = function(v) Settings.WalkSpeed = v end })
-    SpeedSection:Slider({ Name = "Speed Value", Flag = "WalkSpeedValue", Min = 16, Max = 200, Default = 32, Callback = function(v) Settings.WalkSpeedValue = v end })
-    SpeedSection:Toggle({ Name = "JumpPower", Flag = "JumpPower", Default = false, Callback = function(v) Settings.JumpPower = v end })
-    SpeedSection:Slider({ Name = "Jump Value", Flag = "JumpPowerValue", Min = 50, Max = 300, Default = 60, Callback = function(v) Settings.JumpPowerValue = v end })
+    SpeedSection:Toggle({ Name = "WalkSpeed", Flag = "WalkSpeed", Default = false, Tooltip = "Overrides your walk speed", Callback = function(v) Settings.WalkSpeed = v end })
+    SpeedSection:Slider({ Name = "Speed Value", Flag = "WalkSpeedValue", Min = 16, Max = 200, Default = 32, Tooltip = "Walk speed while the toggle is on", Callback = function(v) Settings.WalkSpeedValue = v end })
+    SpeedSection:Toggle({ Name = "JumpPower", Flag = "JumpPower", Default = false, Tooltip = "Overrides your jump height", Callback = function(v) Settings.JumpPower = v end })
+    SpeedSection:Slider({ Name = "Jump Value", Flag = "JumpPowerValue", Min = 50, Max = 300, Default = 60, Tooltip = "Jump power while the toggle is on", Callback = function(v) Settings.JumpPowerValue = v end })
+    SpeedSection:Divider("Noclip")
     ToggleRefs.Noclip = SpeedSection:Toggle({
         Name = "Noclip",
         Flag = "Noclip",
         Default = false,
+        Tooltip = "Walk through walls and floors",
         Callback = function(v)
             Settings.Noclip = v
-            if not v then setNoclip(false) end
+            setNoclip(v)
         end,
     })
     SpeedSection:Keybind({
         Name = "Noclip Key",
         Flag = "NoclipKey",
         Default = Enum.KeyCode.N,
+        Tooltip = "Hotkey that toggles noclip",
         SyncFlag = "Noclip",
         Callback = function()
             if ToggleRefs.Noclip then
@@ -2032,11 +2087,12 @@ end
             end
         end,
     })
+    SpeedSection:Divider("Fly")
     ToggleRefs.Fly = SpeedSection:Toggle({
         Name = "Fly",
         Flag = "Fly",
         Default = false,
-        Tooltip = "WASD + Space / Ctrl",
+        Tooltip = "Fly with WASD. Space goes up, Ctrl goes down",
         Callback = function(v)
             Settings.Fly = v
             if v then startFly() else stopFly() end
@@ -2046,6 +2102,7 @@ end
         Name = "Fly Key",
         Flag = "FlyKey",
         Default = Enum.KeyCode.G,
+        Tooltip = "Hotkey that toggles fly",
         SyncFlag = "Fly",
         Callback = function()
             if ToggleRefs.Fly then
@@ -2053,12 +2110,13 @@ end
             end
         end,
     })
-    SpeedSection:Slider({ Name = "Fly Speed", Flag = "FlySpeed", Min = 20, Max = 200, Default = 50, Callback = function(v) Settings.FlySpeed = v end })
+    SpeedSection:Slider({ Name = "Fly Speed", Flag = "FlySpeed", Min = 20, Max = 200, Default = 50, Tooltip = "How fast you fly", Callback = function(v) Settings.FlySpeed = v end })
 
     VisualSection:Toggle({
         Name = "Fullbright",
         Flag = "Fullbright",
         Default = false,
+        Tooltip = "Removes darkness and fog",
         Callback = function(v)
             Settings.Fullbright = v
             setFullbright(v)
@@ -2068,6 +2126,7 @@ end
         Name = "Custom FOV",
         Flag = "CustomFOV",
         Default = false,
+        Tooltip = "Uses the FOV slider instead of the default camera",
         Callback = function(v)
             Settings.CustomFOV = v
             if not v and Workspace.CurrentCamera then
@@ -2075,12 +2134,13 @@ end
             end
         end,
     })
-    VisualSection:Slider({ Name = "FOV", Flag = "FOVValue", Min = 50, Max = 120, Default = 70, Callback = function(v) Settings.FOVValue = v end })
+    VisualSection:Slider({ Name = "FOV", Flag = "FOVValue", Min = 50, Max = 120, Default = 70, Tooltip = "Camera field of view while Custom FOV is on", Callback = function(v) Settings.FOVValue = v end })
 
     MiscLocalSection:Toggle({
         Name = "Anti-AFK",
         Flag = "AntiAFK",
         Default = true,
+        Tooltip = "Stops Roblox from kicking you for being idle",
         Callback = function(v)
             Settings.AntiAFK = v
             setupAntiAfk()
@@ -2115,6 +2175,7 @@ end
     WebhookFieldsSection:Toggle({ Name = "Include Kills", Flag = "WebhookIncludeKills", Default = true, Tooltip = "Send kill count", Callback = function(v) Settings.WebhookIncludeKills = v end })
     WebhookFieldsSection:Toggle({ Name = "Include PvP Wins", Flag = "WebhookIncludePvPWins", Default = true, Tooltip = "Send PvP wins", Callback = function(v) Settings.WebhookIncludePvPWins = v end })
     WebhookFieldsSection:Toggle({ Name = "Include Gems", Flag = "WebhookIncludeGems", Default = true, Tooltip = "Send gem count", Callback = function(v) Settings.WebhookIncludeGems = v end })
+    WebhookFieldsSection:Divider("Session")
     WebhookFieldsSection:Toggle({ Name = "Include Phase", Flag = "WebhookIncludePhase", Default = true, Tooltip = "Send current auto phase", Callback = function(v) Settings.WebhookIncludePhase = v end })
     WebhookFieldsSection:Toggle({ Name = "Include Ping", Flag = "WebhookIncludePing", Default = true, Tooltip = "Send your ping", Callback = function(v) Settings.WebhookIncludePing = v end })
     WebhookFieldsSection:Toggle({ Name = "Include Uptime", Flag = "WebhookIncludeUptime", Default = true, Tooltip = "Send how long the script has been running", Callback = function(v) Settings.WebhookIncludeUptime = v end })
@@ -2148,6 +2209,7 @@ end
     ServerMain:Button({
         Name = "Rejoin Server",
         Icon = "refresh-cw",
+        Tooltip = "Rejoins this same server",
         Callback = function()
             TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, plr)
         end,
@@ -2155,6 +2217,7 @@ end
     ServerMain:Button({
         Name = "Server Hop",
         Icon = "shuffle",
+        Tooltip = "Joins a different public server",
         Callback = function()
             local ok, servers = pcall(function()
                 return HttpService:JSONDecode(game:HttpGet(
@@ -2175,10 +2238,11 @@ end
         end,
     })
     ServerMain:Divider("JobId")
-    ServerMain:Textbox({ Flag = "JobIdInput", Default = "", Numeric = false, Placeholder = "Enter JobId here...", Finished = false })
+    ServerMain:Textbox({ Flag = "JobIdInput", Default = "", Numeric = false, Placeholder = "Enter JobId here...", Finished = false, Tooltip = "JobId of the server you want to join" })
     ServerMain:Button({
         Name = "Join by JobId",
         Icon = "log-in",
+        Tooltip = "Joins the server from the box above",
         Callback = function()
             local val = Library.Flags.JobIdInput
             if not val or val == "" then
@@ -2191,6 +2255,7 @@ end
     ServerMain:Button({
         Name = "Copy JobId",
         Icon = "copy",
+        Tooltip = "Copies this server's JobId",
         Callback = function()
             pcall(function() setclipboard(game.JobId) end)
             notify("Copied", "Current JobId copied", 2)
@@ -2234,33 +2299,6 @@ end
         TM:BuildThemeSection(SettingsPage)
         TM:LoadDefault()
     end)
-
-    local FeedbackSection = SettingsPage:Section({ Name = "Feedback", Icon = "messages-square", Side = 1, LayoutOrder = -100 })
-    local FeedbackInput = FeedbackSection:Textbox({
-        Flag = "FeedbackText",
-        Default = "",
-        Numeric = false,
-        Placeholder = "Your message…",
-        Finished = false,
-    })
-    FeedbackSection:Button({
-        Name = "Send message",
-        Icon = "send",
-        Callback = function()
-            local msg = Library.Flags.FeedbackText
-            if not msg or #msg == 0 then
-                notify("Empty", "Type something first", 3)
-                return
-            end
-            local ok = sendFeedback(msg)
-            if ok then
-                notify("Sent", "Thanks for the feedback", 3)
-                FeedbackInput:Set("")
-            else
-                notify("Not sent", "Could not send feedback", 3)
-            end
-        end,
-    })
 
     local ScriptSection = SettingsPage:Section({ Name = "Script", Icon = "file-code-2", Side = 1, LayoutOrder = 10 })
     ScriptSection:Toggle({
