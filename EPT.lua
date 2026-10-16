@@ -165,8 +165,25 @@ local mouse = plr:GetMouse()
 local DISCORD_LINK = "https://discord.gg/DPCKQRJmdF"
 local DISCORD_JOIN_URL = "https://pastebin.com/raw/iYvRJrSf"
 local BOOSTFPS_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/BoostFPS.lua"
-local CHANGELOGS_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/EPT-Changelogs.lua"
 local SCRIPT_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/EPT.lua"
+local CHANGELOG_TEXT = [[
+Version: 1.5.0
+* Updated spell list
++ Added Wind
+* Updated rebirth spells
+! Fixed boss targeting
+[-] Removed missing PvP teleports
+[-] Removed PvP wins from webhook
+
++ Added Halloween Event tab, Features:
+- Auto Event
+- Auto Collect Pumpkins
+- Auto Headless
+- Auto Event Bosses
+- Auto Event Kills
+- Auto Event Rebirth
+- Pumpkin ESP
+]]
 
 local Remotes = ReplicatedStorage:WaitForChild("Remotes", 15)
 local DoMagic = Remotes and Remotes:FindFirstChild("DoMagic")
@@ -221,38 +238,46 @@ local ToggleRefs = {}
 
 local REBIRTH_SPELLS = {
     { Name = "Dark Flames", Rebirth = 1 },
+    { Name = "Frost Step", Rebirth = 2 },
     { Name = "Draedon's Tech", Rebirth = 5 },
     { Name = "Yoru", Rebirth = 10 },
+    { Name = "Crystaline Mirror", Rebirth = 12 },
     { Name = "Plasma Orbs", Rebirth = 15 },
+    { Name = "The Void", Rebirth = 19 },
+    { Name = "Laser Beam", Rebirth = 21 },
     { Name = "Red Saucer", Rebirth = 30 },
+    { Name = "Missile Volly", Rebirth = 44 },
+    { Name = "Rainbow Bomb", Rebirth = 67 },
     { Name = "Undead Staff", Rebirth = 99 },
     { Name = "Elysian Beam", Rebirth = 120 },
     { Name = "Bubble Flail", Rebirth = 160 },
     { Name = "Poison Serpent", Rebirth = 220 },
     { Name = "Sonar", Rebirth = 300 },
+    { Name = "Nuclear Strike", Rebirth = 777 },
 }
 
 local MYSTERY_POWERS = {
     Fire = { "Fire Sword", "Fire Ball", "Fire Fly", "Fire Bomb", "Comet", "Combust", "Fire Shower" },
-    Ice = { "Frost Staff", "Frost Fire Ball", "Ice Disk", "Frost Fire Bomb", "Snow Ball", "Ultracold Aura", "Ice Spikes" },
-    Lava = { "Lava Katana", "Lava Ball", "Magma Fists", "Lava Dash", "Volcano Sentry", "Magma Spikes", "Nibiru" },
-    Bone = { "Bone Scythe", "Blaster", "Bones Barrage", "Flying Bone", "Bone Surge", "Twin Blasters", "Judgement Blast" },
+    Ice = { "Frost Fire Ball", "Ice Disk", "Frost Fire Bomb", "Snow Ball", "Ultracold Aura", "Ice Spikes" },
+    Lava = { "Lava Ball", "Magma Fists", "Lava Dash", "Volcano Sentry", "Magma Spikes", "Nibiru" },
+    Bone = { "Blaster", "Bones Barrage", "Flying Bone", "Bone Surge", "Twin Blasters", "Judgement Blast" },
     Darkness = { "Shadow Sword", "Unseen Hands", "Unseen Barrage", "Dark Duo", "Abyss", "Dark Hold", "Dark Arc" },
-    Light = { "Light Saber", "Light Ball", "Light Orbs", "Blinding Light", "Shooting Star", "Light Speed", "Light Beam" },
-    Nature = { "Christmas Tree Sword", "Plantoid", "Spore Bombs", "Nature's Blessing", "Nuclear Spore", "Pine Burst", "Nature's Wrath" },
-    Thunder = { "Thunder Staff", "Bolt", "Barrage", "Discharge", "Flying Nimbus", "Lightning Strike", "Storm" },
+    Light = { "Light Ball", "Light Orbs", "Blinding Light", "Shooting Star", "Light Speed", "Light Beam" },
+    Nature = { "Plantoid", "Spore Bombs", "Nature's Blessing", "Nuclear Spore", "Pine Burst", "Nature's Wrath" },
+    Thunder = { "Thunder Staff", "Bolt", "Discharge", "Flying Nimbus", "Lightning Strike", "Storm", "Energy Beam" },
     Earth = { "Tectonic Hammer", "Stone Throw", "Rocks Barrage", "Large Boulder", "Burrow", "Stone Henge", "Earth Spikes" },
     Technology = { "Hyper Sword", "Photon Blast", "Twin-Photon Blast", "Tesla Turret", "Orbital", "Tesseract", "Hyper Slash" },
     Gravity = { "Gravity Katana", "Heavy Infliction", "Tectonic Barrage", "Gravity Orb", "Tectonic Burst", "Zero Gravity", "Gravity Globe" },
-    Time = { "Time Scepter", "Temporal Gate", "Warp Barrage", "Tempo Beam", "Time Trap", "Warp Bomb", "Grand Clock" },
+    Time = { "Temporal Gate", "Warp Barrage", "Tempo Beam", "Time Trap", "Warp Bomb", "Grand Clock" },
     Crystal = { "Crystal Cleaver", "Crystal Mine", "Energy Crash", "Energy Crown", "Crystal Eruption", "Energy Crystal", "Crystal Surge" },
-    Venom = { "Venom Blade", "Poison Bullet", "Acid Rain", "Venom Stream", "Hardened Venom", "Poison Demon", "Bubbling Venom" },
-    Devil = { "Devil Sword", "Evil Bullet", "Fangs Barrage", "Evil Flash", "Demon Orb", "Demon Lock", "Dark Tsunami" },
+    Venom = { "Poison Bullet", "Acid Rain", "Venom Stream", "Hardened Venom", "Poison Demon", "Bubbling Venom" },
+    Devil = { "Evil Bullet", "Fangs Barrage", "Evil Flash", "Demon Orb", "Demon Lock", "Dark Tsunami" },
     Space = { "Space Gun", "Blackhole Orb", "Moon Splitter", "Asteroid Belt", "Meteor Jam", "Cosmic Remote", "Space Saucer" },
-    Water = { "Aqua Trident", "Bubbles", "Jellyfish", "Big Tsunami", "Water Beam", "Bubble Dash" },
+    Water = { "Aqua Trident", "Bubbles", "Jellyfish", "Big Tsunami", "Water Beam", "Whirlpool" },
+    Wind = { "Wind Needles", "Poof", "Vacuum", "Gale Sphere", "Air Prison", "Cyclone", "Gale Fan" },
     ["Super Sonic"] = { "Sonic Barrage", "Super Sonic Wave", "Sonic Boom", "Sonic Twister", "Rebound Blast", "Rebound Teleport", "Sonic Blaster" },
     Ability = { "Speed Potion", "Portal Potion", "Air Strike", "Jump", "Crate Rain", "Meteor Shower", "Health Potion", "Dash", "Size Toggle", "Rocket Launcher", "Cruel Sun", "Robux Beam" },
-    Rebirth = { "Dark Flames", "Draedon's Tech", "Yoru", "Plasma Orbs", "Red Saucer", "Undead Staff", "Elysian Beam", "Bubble Flail", "Poison Serpent", "Sonar" },
+    Rebirth = { "Dark Flames", "Frost Step", "Draedon's Tech", "Yoru", "Crystaline Mirror", "Plasma Orbs", "The Void", "Laser Beam", "Red Saucer", "Missile Volly", "Rainbow Bomb", "Undead Staff", "Elysian Beam", "Bubble Flail", "Poison Serpent", "Sonar", "Nuclear Strike" },
 }
 
 local MYSTERY_ELEMENTS = {}
@@ -274,6 +299,12 @@ local Settings = {
     AutoChests = false,
     AutoBalloons = false,
     AutoHeal = false,
+    AutoEvent = false,
+    AutoPumpkins = false,
+    AutoEventKills = false,
+    AutoEventBosses = false,
+    AutoHeadless = false,
+    AutoEventRebirth = false,
     AttackPlayers = false,
     SelectedRebirthSpell = "Dark Flames",
     SelectedPowerElement = "Fire",
@@ -282,6 +313,7 @@ local Settings = {
     PlayerESP = true,
     EnemyESP = true,
     ChestESP = true,
+    PumpkinESP = false,
     HillESP = true,
     CollectorESP = false,
     ESPDistance = true,
@@ -303,7 +335,6 @@ local Settings = {
     WebhookIncludeMoney = true,
     WebhookIncludeRebirth = true,
     WebhookIncludeKills = true,
-    WebhookIncludePvPWins = true,
     WebhookIncludeGems = true,
     WebhookIncludePhase = true,
     WebhookIncludePing = true,
@@ -388,12 +419,6 @@ local function getKills()
     local ls = plr:FindFirstChild("leaderstats")
     local kills = ls and ls:FindFirstChild("Kills")
     return kills and kills.Value or 0
-end
-
-local function getPvPWins()
-    local ls = plr:FindFirstChild("leaderstats")
-    local wins = ls and ls:FindFirstChild("PvPWins")
-    return wins and wins.Value or 0
 end
 
 local function getGems()
@@ -679,14 +704,93 @@ local function getOwnedButtons()
     return buttons
 end
 
-local function equipMysterySpell(spellName)
+local function findSpellCategory(spellName)
+    local magic = ReplicatedStorage:FindFirstChild("Magic")
+    if not magic or type(spellName) ~= "string" then
+        return nil
+    end
+    for _, category in magic:GetChildren() do
+        if category:FindFirstChild(spellName) then
+            return category.Name
+        end
+    end
+    return nil
+end
+
+local function rebirthNeed(spellName)
+    for _, spell in REBIRTH_SPELLS do
+        if spell.Name == spellName then
+            return spell.Rebirth
+        end
+    end
+    return nil
+end
+
+local function findOwnedTool(spellName)
+    local char = plr.Character
+    local tool = char and char:FindFirstChild(spellName)
+    if tool and tool:IsA("Tool") then
+        return tool
+    end
+    local backpack = plr:FindFirstChild("Backpack")
+    tool = backpack and backpack:FindFirstChild(spellName)
+    if tool and tool:IsA("Tool") then
+        return tool
+    end
+    return nil
+end
+
+local function holdOwnedSpell(spellName)
+    local tool = findOwnedTool(spellName)
+    local hum = plr.Character and plr.Character:FindFirstChildOfClass("Humanoid")
+    if not tool or not hum then
+        return false
+    end
+    if tool.Parent ~= plr.Character then
+        pcall(function()
+            hum:EquipTool(tool)
+        end)
+    end
+    return plr.Character and plr.Character:FindFirstChild(spellName) ~= nil
+end
+
+local function grantSpell(spellName)
+    if findOwnedTool(spellName) then
+        return true
+    end
     if not MainRemote or type(spellName) ~= "string" or spellName == "" then
         return false
     end
+    local action
+    local category = findSpellCategory(spellName)
+    if category == "Rebirth" then
+        local need = rebirthNeed(spellName)
+        if not need or getRebirth() < need then
+            return false
+        end
+        action = "equip_rebirth_spell"
+    elseif category == "Event" then
+        action = "equip_event_spell"
+    elseif plr:GetAttribute("MysteryRoll") == spellName then
+        action = "equip_mystery_spell"
+    else
+        return false
+    end
     local ok = pcall(function()
-        MainRemote:FireServer("equip_mystery_spell", spellName)
+        MainRemote:FireServer(action, spellName)
     end)
-    return ok
+    if not ok then
+        return false
+    end
+    task.wait(0.45)
+    return findOwnedTool(spellName) ~= nil
+end
+
+local function equipSpell(spellName)
+    if not grantSpell(spellName) then
+        return false
+    end
+    return holdOwnedSpell(spellName) or findOwnedTool(spellName) ~= nil
 end
 
 local spellCategoryByName = {}
@@ -741,19 +845,93 @@ local function ensureSpellEquipped()
     return nil
 end
 
-local function fireMagicAt(position)
+local aimPoint = nil
+local aimHooked = false
+local aimOriginal = nil
+local aimUntil = 0
+
+local function gameGlobals()
+    if typeof(getrenv) == "function" then
+        local ok, env = pcall(getrenv)
+        if ok and type(env) == "table" and type(env._G) == "table" then
+            return env._G
+        end
+    end
+    return _G
+end
+
+local function unlockAim()
+    if aimHooked and aimOriginal then
+        gameGlobals().GetCursor = aimOriginal
+    end
+    aimHooked = false
+    aimOriginal = nil
+    aimPoint = nil
+end
+
+local function lockAim(pos)
+    if typeof(pos) ~= "Vector3" then
+        return
+    end
+    aimPoint = pos
+    aimUntil = os.clock() + 0.85
+    if aimHooked then
+        return
+    end
+    local g = gameGlobals()
+    if typeof(g.GetCursor) ~= "function" then
+        return
+    end
+    aimOriginal = g.GetCursor
+    g.GetCursor = function(...)
+        if aimPoint then
+            return aimPoint
+        end
+        return aimOriginal(...)
+    end
+    aimHooked = true
+end
+
+local function fireMagicAt(position, targetModel)
     if not DoMagic then return false end
     local category, spell = ensureSpellEquipped()
     if not category then return false end
     local cam = Workspace.CurrentCamera
+    local cameraCf = cam and cam.CFrame or CFrame.new()
+    if typeof(targetModel) == "Instance" and typeof(position) == "Vector3" then
+        lockAim(position)
+        if cam then
+            local origin = cam.CFrame.Position
+            if (position - origin).Magnitude > 1 then
+                cameraCf = CFrame.lookAt(origin, position)
+            end
+        end
+        task.wait(0.07)
+    end
+    local payload = {
+        Mouse = position or getCursorPos(),
+        Camera = cameraCf,
+    }
+    if typeof(targetModel) == "Instance" then
+        payload.Target = targetModel
+    end
     local ok = pcall(function()
-        DoMagic:FireServer(category, spell, {
-            Mouse = position or getCursorPos(),
-            Camera = cam and cam.CFrame or CFrame.new(),
-        })
+        DoMagic:FireServer(category, spell, payload)
     end)
     return ok
 end
+
+local BOSS_NAMES = {
+    ["Giant Noob"] = true,
+    ["Ice Queen"] = true,
+    ["King Slime [HARD]"] = true,
+    ["Magma Lord"] = true,
+    ["Tempest"] = true,
+    ["Storm Titan"] = true,
+    ["Shadow Reaper"] = true,
+    ["Crystal Golem"] = true,
+    ["Headless"] = true,
+}
 
 local function getEnemyModels()
     local list = {}
@@ -765,11 +943,17 @@ local function getEnemyModels()
             local hum = model:FindFirstChildOfClass("Humanoid")
             local hrp = model:FindFirstChild("HumanoidRootPart") or model.PrimaryPart
             if hum and hrp and hum.Health > 0 then
+                local title = model:GetAttribute("Title")
+                if typeof(title) ~= "string" or title == "" then
+                    title = model.Name
+                end
+                local isBoss = BOSS_NAMES[title] == true or model.Name == "Boss" or title:lower():find("boss", 1, true) ~= nil
                 table.insert(list, {
                     model = model,
                     hum = hum,
                     hrp = hrp,
-                    isBoss = model.Name:lower():find("boss") ~= nil or model.Name == "Boss",
+                    isBoss = isBoss,
+                    isHeadless = title == "Headless" or model.Name == "Headless",
                 })
             end
         end
@@ -993,8 +1177,8 @@ local function doAutoHill()
     end)
 end
 
-local function doAutoRebirth()
-    if not autoOn("AutoRebirth") then return end
+local function doAutoRebirth(force)
+    if not force and not autoOn("AutoRebirth") then return end
     if os.clock() - lastRebirth < 2 then return end
     local prompt, button = getRebirthPrompt()
     if not prompt and not canRebirth() then return end
@@ -1017,6 +1201,7 @@ local function doAutoRebirth()
         task.wait(0.15)
     end
     triggerPrompt(prompt)
+    return true
 end
 
 local function doAutoStats()
@@ -1073,7 +1258,12 @@ local function doAutoAttack(preferBoss)
     if not target then return end
     lastAttack = os.clock()
     autoPhase = preferBoss and "Boss Farm" or "Attacking"
-    fireMagicAt(target.hrp.Position)
+    local _, _, hrp = getCharacter()
+    if hrp and (target.hrp.Position - hrp.Position).Magnitude > 55 then
+        tweenTo(target.hrp.Position, 3)
+        task.wait(0.05)
+    end
+    fireMagicAt(target.hrp.Position, target.model)
 end
 
 local function doAutoChests()
@@ -1101,7 +1291,8 @@ local function doAutoChests()
     local part = best:IsA("BasePart") and best or best:FindFirstChildWhichIsA("BasePart", true)
     local prompt = findPrompt(best)
     if part then tweenTo(part.Position) end
-    task.wait(0.1)
+    -- The chest script drops the prompt when the server still sees you more than 30 studs away.
+    task.wait(0.6)
     if prompt then triggerPrompt(prompt) end
 end
 
@@ -1150,6 +1341,225 @@ local function doAutoHeal()
     triggerPrompt(prompt)
 end
 
+local PUMPKIN_NEED = {
+    Gold = 4,
+    Shadow = 12,
+    Ghost = 30,
+    Green = 50,
+    Purple = 70,
+    Orange = 120,
+}
+local PUMPKIN_PRIORITY = { "Gold", "Shadow", "Ghost", "Green", "Purple", "Orange" }
+local lastPumpkin = 0
+
+local function eventOn(key)
+    if Settings.AutoEvent then
+        return true
+    end
+    return Settings[key] == true
+end
+
+local function halloweenInner()
+    local gui = plr:FindFirstChild("PlayerGui")
+    local hud = gui and gui:FindFirstChild("HUD")
+    local mid = hud and hud:FindFirstChild("MiddleCenter")
+    local frame = mid and mid:FindFirstChild("HalloweenFrame")
+    local content = frame and frame:FindFirstChild("ContentFrame")
+    return content and content:FindFirstChild("Inner")
+end
+
+local function halloweenTaskDone(id)
+    local inner = halloweenInner()
+    local tasks = inner and inner:FindFirstChild("Tasks")
+    local card = tasks and tasks:FindFirstChild(id)
+    if not card then
+        return false
+    end
+    for _, desc in card:GetDescendants() do
+        if desc:IsA("TextLabel") and desc.Text == "DONE" then
+            return true
+        end
+    end
+    return false
+end
+
+local function getPumpkinCounts()
+    local counts = {}
+    local byNeed = {}
+    for id, need in pairs(PUMPKIN_NEED) do
+        counts[id] = 0
+        byNeed[tostring(need)] = id
+    end
+    local inner = halloweenInner()
+    local side = inner and inner:FindFirstChild("Side")
+    local bag = side and side:FindFirstChild("Bag")
+    if not bag then
+        return counts
+    end
+    for _, desc in bag:GetDescendants() do
+        if desc:IsA("TextLabel") then
+            local current, need = string.match(desc.Text, "^(%d+)%s*/%s*(%d+)$")
+            local id = need and byNeed[need]
+            if id then
+                counts[id] = tonumber(current) or 0
+            end
+        end
+    end
+    return counts
+end
+
+local function pumpkinPart(model)
+    local root = model:FindFirstChild("Root", true)
+    if root and root:IsA("BasePart") then
+        return root
+    end
+    if model:IsA("BasePart") then
+        return model
+    end
+    return model:FindFirstChildWhichIsA("BasePart", true)
+end
+
+local function pickPumpkin()
+    local folder = Workspace:FindFirstChild("HalloweenPumpkins")
+    if not folder then
+        return nil
+    end
+    local _, _, hrp = getCharacter()
+    if not hrp then
+        return nil
+    end
+    local counts = getPumpkinCounts()
+    local best, bestScore
+    for _, model in folder:GetChildren() do
+        if model:IsA("Model") then
+            local id = model.Name
+            local need = PUMPKIN_NEED[id]
+            if not need or (counts[id] or 0) < need then
+                local part = pumpkinPart(model)
+                local prompt = part and part:FindFirstChildOfClass("ProximityPrompt")
+                if prompt and prompt.Enabled and part then
+                    local rank = 99
+                    for index, name in ipairs(PUMPKIN_PRIORITY) do
+                        if name == id then
+                            rank = index
+                            break
+                        end
+                    end
+                    local score = rank * 100000 + (part.Position - hrp.Position).Magnitude
+                    if not bestScore or score < bestScore then
+                        best = { prompt = prompt, part = part, model = model }
+                        bestScore = score
+                    end
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function doAutoPumpkins()
+    local pick = pickPumpkin()
+    if not pick then
+        return false
+    end
+    if os.clock() - lastPumpkin < 1.2 then
+        return true
+    end
+    lastPumpkin = os.clock()
+    autoPhase = "Pumpkin"
+    tweenTo(pick.part.Position, 3)
+    task.wait(0.1)
+    triggerPrompt(pick.prompt)
+    return true
+end
+
+local function findNamedEnemy(headlessOnly, bossesOnly, skipBoss)
+    local _, _, hrp = getCharacter()
+    if not hrp then
+        return nil
+    end
+    local best, bestDist
+    for _, entry in getEnemyModels() do
+        local ok = true
+        if headlessOnly then
+            ok = entry.isHeadless
+        elseif bossesOnly then
+            ok = entry.isBoss and not entry.isHeadless
+        elseif skipBoss then
+            ok = not entry.isBoss
+        end
+        if ok then
+            local dist = (entry.hrp.Position - hrp.Position).Magnitude
+            if not bestDist or dist < bestDist then
+                best, bestDist = entry, dist
+            end
+        end
+    end
+    return best
+end
+
+local function doEventAttack(target, phase)
+    if not target or not target.hrp then
+        return false
+    end
+    if os.clock() - lastAttack < 0.35 then
+        return false
+    end
+    local _, _, hrp = getCharacter()
+    if not hrp then
+        return false
+    end
+    lastAttack = os.clock()
+    autoPhase = phase
+    if (target.hrp.Position - hrp.Position).Magnitude > 55 then
+        tweenTo(target.hrp.Position, 3)
+        task.wait(0.05)
+    end
+    fireMagicAt(target.hrp.Position, target.model)
+    return true
+end
+
+local function doHalloweenTick()
+    if hillBusy or moveBusy then
+        return
+    end
+    local any = Settings.AutoEvent or Settings.AutoPumpkins or Settings.AutoHeadless
+        or Settings.AutoEventBosses or Settings.AutoEventKills or Settings.AutoEventRebirth
+    if not any then
+        return
+    end
+    if eventOn("AutoHeadless") and not halloweenTaskDone("Headless") then
+        local headless = findNamedEnemy(true, false, false)
+        if headless then
+            doEventAttack(headless, "Headless")
+            return
+        end
+    end
+    if eventOn("AutoPumpkins") and not halloweenTaskDone("Pumpkins") then
+        if doAutoPumpkins() then
+            return
+        end
+    end
+    if eventOn("AutoEventBosses") and not halloweenTaskDone("Bosses") then
+        local boss = findNamedEnemy(false, true, false)
+        if boss then
+            doEventAttack(boss, "Event Boss")
+            return
+        end
+    end
+    if eventOn("AutoEventRebirth") and not halloweenTaskDone("Rebirths") then
+        if doAutoRebirth(true) then
+            return
+        end
+    end
+    if eventOn("AutoEventKills") and not halloweenTaskDone("Kills") then
+        local foe = findNamedEnemy(false, false, true) or findNamedEnemy(false, false, false)
+        if foe then
+            doEventAttack(foe, "Event Kills")
+        end
+    end
+end
+
 local function runAutoTick()
     syncSettingsFromUI()
     if not hillBusy then
@@ -1164,12 +1574,16 @@ local function runAutoTick()
         doAutoHeal()
         doAutoChests()
         doAutoBalloons()
+        doHalloweenTick()
         if Settings.AutoBoss then
             doAutoAttack(true)
         end
         if Settings.AutoAttack then
             doAutoAttack(false)
         end
+    end
+    if aimHooked and os.clock() > aimUntil then
+        unlockAim()
     end
 end
 
@@ -1191,10 +1605,17 @@ local function startAutoLoop()
                 or Settings.AutoChests
                 or Settings.AutoBalloons
                 or Settings.AutoHeal
+                or Settings.AutoEvent
+                or Settings.AutoPumpkins
+                or Settings.AutoHeadless
+                or Settings.AutoEventBosses
+                or Settings.AutoEventKills
+                or Settings.AutoEventRebirth
             if active then
                 pcall(runAutoTick)
             else
                 autoPhase = "Idle"
+                unlockAim()
             end
             task.wait(0.45)
         end
@@ -1518,6 +1939,18 @@ local function updateESP()
             end
         end
     end
+    if Settings.PumpkinESP then
+        local pumpkins = Workspace:FindFirstChild("HalloweenPumpkins")
+        if pumpkins then
+            for _, model in pumpkins:GetChildren() do
+                local part = pumpkinPart(model)
+                if part then
+                    seenWorld[model] = true
+                    ensureBillboard(model, model.Name .. " Pumpkin" .. distText(part.Position), Color3.fromRGB(255, 140, 40), worldESP, false)
+                end
+            end
+        end
+    end
     if Settings.HillESP then
         local hill = getHillPart()
         if hill then
@@ -1612,9 +2045,6 @@ local function buildWebhookPayload()
     end
     if Settings.WebhookIncludeKills then
         table.insert(fields, { name = "Kills", value = tostring(getKills()), inline = true })
-    end
-    if Settings.WebhookIncludePvPWins then
-        table.insert(fields, { name = "PvP Wins", value = tostring(getPvPWins()), inline = true })
     end
     if Settings.WebhookIncludeGems then
         table.insert(fields, { name = "Gems", value = tostring(getGems()), inline = true })
@@ -1730,7 +2160,7 @@ end
 
     local Window = Library:Window({
         Name = "Samuraa1 Hub",
-        SubName = "Elemental Powers Tycoon | v1.1.0",
+        SubName = "Elemental Powers Tycoon | v1.5.0",
         Logo = "97594400820219",
         MobileScale = UserInputService.TouchEnabled and 0.72 or nil,
     })
@@ -1754,7 +2184,18 @@ end
                 pcall(function() loadRemoteLua(DISCORD_JOIN_URL) end)
             end },
             { Icon = "file-text", Tooltip = "View changelogs", Callback = function()
-                pcall(function() loadRemoteLua(CHANGELOGS_URL) end)
+                if type(Library.Changelog) ~= "function" then
+                    notify("Changelogs", "Update the UI library to open changelogs.", 3)
+                    return
+                end
+                Library:Changelog({
+                    Title = "Elemental Powers Tycoon",
+                    Text = CHANGELOG_TEXT,
+                    Force = true,
+                    Buttons = {
+                        { Name = "Join Discord", Clipboard = DISCORD_LINK },
+                    },
+                })
             end },
             { Icon = "zap", Tooltip = "Boost FPS", Callback = function()
                 pcall(function() loadRemoteLua(BOOSTFPS_URL) end)
@@ -1780,6 +2221,7 @@ end
     local AutoPage = Window:Page({ Name = "Automation", Icon = "bot" })
     local CombatPage = Window:Page({ Name = "Combat", Icon = "swords" })
     local PowersPage = Window:Page({ Name = "Powers", Icon = "wand" })
+    local HalloweenPage = Window:Page({ Name = "Halloween Event", Icon = "ghost" })
     local ESPPage = Window:Page({ Name = "ESP", Icon = "eye" })
     local TeleportPage = Window:Page({ Name = "Teleports", Icon = "map-pin" })
     local LocalPage = Window:Page({ Name = "Local Player", Icon = "user-round" })
@@ -1789,6 +2231,7 @@ end
     DashPage:AddCard({ Name = "AUTOMATION", Description = "Collect, buy, hill, rebirth", Icon = "bot", Tab = AutoPage })
     DashPage:AddCard({ Name = "COMBAT", Description = "Auto attack and boss farm", Icon = "swords", Tab = CombatPage })
     DashPage:AddCard({ Name = "POWERS", Description = "Equip any elemental power", Icon = "wand", Tab = PowersPage })
+    DashPage:AddCard({ Name = "HALLOWEEN", Description = "Pumpkin hunt quests", Icon = "ghost", Tab = HalloweenPage })
     DashPage:AddCard({ Name = "ESP", Description = "Players, enemies, chests", Icon = "eye", Tab = ESPPage })
     DashPage:AddCard({ Name = "WEBHOOK", Description = "Discord reports", Icon = "webhook", Tab = WebhookPage })
 
@@ -1880,7 +2323,7 @@ end
     local CombatSection = CombatPage:Section({ Name = "Combat", Icon = "swords", Side = 1, LayoutOrder = 0 })
 
     CombatSection:Toggle({ Name = "Auto Attack", Flag = "AutoAttack", Default = false, Tooltip = "Casts your equipped spell at the nearest enemy", Callback = function(v) Settings.AutoAttack = v end })
-    CombatSection:Toggle({ Name = "Auto Boss Farm", Flag = "AutoBoss", Default = false, Tooltip = "Attacks the boss first. If there is no boss, attacks the nearest enemy", Callback = function(v) Settings.AutoBoss = v end })
+    CombatSection:Toggle({ Name = "Auto Boss Farm", Flag = "AutoBoss", Default = false, Tooltip = "Attacks world bosses first, including Magma Lord and Headless. If none are up, attacks the nearest enemy", Callback = function(v) Settings.AutoBoss = v end })
     CombatSection:Toggle({ Name = "Attack Players", Flag = "AttackPlayers", Default = false, Tooltip = "Auto Attack can also target other players", Callback = function(v) Settings.AttackPlayers = v end })
     CombatSection:Divider("Manual")
     CombatSection:Button({
@@ -1944,40 +2387,192 @@ end
     PowerEquipSection:Button({
         Name = "Equip Selected Power",
         Icon = "check",
-        Tooltip = "Equips the spell selected above",
+        Tooltip = "Gives a rebirth spell you unlocked, an owned event spell, or your current mystery roll, then holds it. Other spells are bought on the tycoon",
         Callback = function()
             local spell = Settings.SelectedPowerSpell
-            if Library and Library.Flags and Library.Flags.SelectedPowerSpell then
+            if Library and Library.Flags and type(Library.Flags.SelectedPowerSpell) == "string" then
                 spell = Library.Flags.SelectedPowerSpell
                 Settings.SelectedPowerSpell = spell
             end
-            if equipMysterySpell(spell) then
-                notify("Powers", "Equipped " .. tostring(spell), 2)
-            else
-                notify("Powers", "Failed to equip", 3)
-            end
+            task.spawn(function()
+                if equipSpell(spell) then
+                    notify("Powers", "Equipped " .. tostring(spell), 2)
+                else
+                    notify("Powers", "Server did not give " .. tostring(spell), 3)
+                end
+            end)
         end,
     })
 
     PowerQuickSection:Button({
         Name = "Equip All From Element",
         Icon = "layers",
-        Tooltip = "Equips every spell from the selected element",
+        Tooltip = "Asks the server for every spell in this element that you are allowed to take",
         Callback = function()
             local element = Settings.SelectedPowerElement
+            if Library and Library.Flags and type(Library.Flags.SelectedPowerElement) == "string" then
+                element = Library.Flags.SelectedPowerElement
+                Settings.SelectedPowerElement = element
+            end
             local spells = MYSTERY_POWERS[element]
             if not spells then
                 notify("Powers", "No spells for element", 3)
                 return
             end
             task.spawn(function()
+                local got = 0
                 for _, spell in ipairs(spells) do
-                    equipMysterySpell(spell)
-                    task.wait(0.15)
+                    if grantSpell(spell) then
+                        got += 1
+                    end
                 end
-                notify("Powers", "Equipped " .. element .. " set", 3)
+                notify("Powers", element .. ": " .. tostring(got) .. "/" .. tostring(#spells), 3)
             end)
         end,
+    })
+    PowerQuickSection:Button({
+        Name = "Claim Mystery Roll",
+        Icon = "gift",
+        Tooltip = "Takes the spell currently rolled on a mystery block",
+        Callback = function()
+            local roll = plr:GetAttribute("MysteryRoll")
+            if type(roll) ~= "string" or roll == "" then
+                notify("Powers", "No mystery roll right now", 3)
+                return
+            end
+            task.spawn(function()
+                if equipSpell(roll) then
+                    notify("Powers", "Claimed " .. roll, 2)
+                else
+                    notify("Powers", "Couldn't claim " .. roll, 3)
+                end
+            end)
+        end,
+    })
+
+    local function applyPumpkinTabIcon(page)
+        local iconObj = page and page.Items and page.Items.Icon
+        local image = iconObj and (iconObj.Instance or iconObj)
+        if typeof(image) ~= "Instance" or not image:IsA("ImageLabel") then
+            return
+        end
+        local eventFolder = ReplicatedStorage:FindFirstChild("HalloweenEvent")
+        local templates = eventFolder and eventFolder:FindFirstChild("Pumpkins")
+        local template = templates and templates:FindFirstChild("Orange")
+        if not template then
+            return
+        end
+        local view = Instance.new("ViewportFrame")
+        view.Name = "PumpkinIcon"
+        view.BackgroundTransparency = 1
+        view.Size = UDim2.fromOffset(18, 18)
+        view.Position = image.Position
+        view.AnchorPoint = image.AnchorPoint
+        view.ZIndex = image.ZIndex + 1
+        view.LightDirection = Vector3.new(-0.5, -1, -0.8)
+        view.Ambient = Color3.fromRGB(200, 170, 150)
+        view.LightColor = Color3.fromRGB(255, 225, 190)
+        view.Parent = image.Parent
+        local model = template:Clone()
+        for _, desc in model:GetDescendants() do
+            if desc:IsA("ParticleEmitter") or desc:IsA("PointLight") or desc:IsA("Sound") or desc:IsA("ProximityPrompt") then
+                desc:Destroy()
+            end
+        end
+        model:PivotTo(CFrame.new())
+        model.Parent = view
+        local cam = Instance.new("Camera")
+        cam.FieldOfView = 30
+        cam.Parent = view
+        local box, size = model:GetBoundingBox()
+        cam.CFrame = CFrame.lookAt(box.Position + Vector3.new(0, size.Y * 0.45, size.Z * 2.55), box.Position + Vector3.new(0, -size.Y * 0.05, 0))
+        view.CurrentCamera = cam
+        image.Image = ""
+    end
+    pcall(applyPumpkinTabIcon, HalloweenPage)
+
+    local HuntSection = HalloweenPage:Section({ Name = "Pumpkin Hunt", Icon = "sparkles", Side = 1, LayoutOrder = 0 })
+    local QuestSection = HalloweenPage:Section({ Name = "Quests", Icon = "swords", Side = 2, LayoutOrder = 0 })
+
+    HuntSection:Toggle({
+        Name = "Auto Event",
+        Flag = "AutoEvent",
+        Default = false,
+        Tooltip = "Pumpkins, then Headless, bosses, rebirth, then kills. Playtime and daily quests count while you stay in game",
+        Callback = function(v) Settings.AutoEvent = v end,
+    })
+    HuntSection:Divider("Pumpkins")
+    HuntSection:Toggle({
+        Name = "Auto Collect Pumpkins",
+        Flag = "AutoPumpkins",
+        Default = false,
+        Tooltip = "Walks to a pumpkin you still need and uses its Collect prompt",
+        Callback = function(v) Settings.AutoPumpkins = v end,
+    })
+    HuntSection:Toggle({
+        Name = "Pumpkin ESP",
+        Flag = "PumpkinESP",
+        Default = false,
+        Tooltip = "Marks pumpkins on the map",
+        Callback = function(v) Settings.PumpkinESP = v end,
+    })
+    HuntSection:Button({
+        Name = "TP Nearest Pumpkin",
+        Icon = "map-pin",
+        Tooltip = "Teleports to the closest pumpkin",
+        Callback = function()
+            local folder = Workspace:FindFirstChild("HalloweenPumpkins")
+            local _, _, hrp = getCharacter()
+            if not folder or not hrp then
+                notify("Pumpkin", "No pumpkins right now", 3)
+                return
+            end
+            local best, bestDist
+            for _, model in folder:GetChildren() do
+                local part = pumpkinPart(model)
+                if part then
+                    local dist = (part.Position - hrp.Position).Magnitude
+                    if not bestDist or dist < bestDist then
+                        best, bestDist = part, dist
+                    end
+                end
+            end
+            if best and tpToPart(best) then
+                notify("Pumpkin", "Teleported", 2)
+            else
+                notify("Pumpkin", "No pumpkins right now", 3)
+            end
+        end,
+    })
+
+    QuestSection:Toggle({
+        Name = "Auto Headless",
+        Flag = "AutoHeadless",
+        Default = false,
+        Tooltip = "Fights the Headless Horseman while that quest is open",
+        Callback = function(v) Settings.AutoHeadless = v end,
+    })
+    QuestSection:Toggle({
+        Name = "Auto Event Bosses",
+        Flag = "AutoEventBosses",
+        Default = false,
+        Tooltip = "Fights world bosses while Monster Hunter is open",
+        Callback = function(v) Settings.AutoEventBosses = v end,
+    })
+    QuestSection:Toggle({
+        Name = "Auto Event Kills",
+        Flag = "AutoEventKills",
+        Default = false,
+        Tooltip = "Attacks enemies while the Reaper quest is open",
+        Callback = function(v) Settings.AutoEventKills = v end,
+    })
+    QuestSection:Divider("Rebirth")
+    QuestSection:Toggle({
+        Name = "Auto Event Rebirth",
+        Flag = "AutoEventRebirth",
+        Default = false,
+        Tooltip = "Rebirths when the rebirth button is ready and Born Again is still open",
+        Callback = function(v) Settings.AutoEventRebirth = v end,
     })
 
     -- ESP
@@ -2031,14 +2626,6 @@ end
         if tpToPart(arrive) then notify("TP", "Ability Room", 2) end
     end })
 
-    TPExtra:Button({ Name = "TP Battle Arena", Icon = "swords", Tooltip = "Teleports to the battle arena", Callback = function()
-        local arena = Workspace:FindFirstChild("BattleArena")
-        if tpToPart(arena) then notify("TP", "Arena", 2) end
-    end })
-    TPExtra:Button({ Name = "TP PvP Queue", Icon = "users", Tooltip = "Teleports to the PvP queue", Callback = function()
-        local q = Workspace:FindFirstChild("PvpQueue")
-        if tpToPart(q) then notify("TP", "PvP Queue", 2) end
-    end })
     TPExtra:Button({ Name = "TP Nearest Chest", Icon = "box", Tooltip = "Teleports to the closest treasure chest", Callback = function()
         local treasure = Workspace:FindFirstChild("Treasure")
         local chests = treasure and treasure:FindFirstChild("Chests")
@@ -2173,7 +2760,6 @@ end
     WebhookFieldsSection:Toggle({ Name = "Include Money", Flag = "WebhookIncludeMoney", Default = true, Tooltip = "Send your money balance", Callback = function(v) Settings.WebhookIncludeMoney = v end })
     WebhookFieldsSection:Toggle({ Name = "Include Rebirth", Flag = "WebhookIncludeRebirth", Default = true, Tooltip = "Send rebirth count and percent", Callback = function(v) Settings.WebhookIncludeRebirth = v end })
     WebhookFieldsSection:Toggle({ Name = "Include Kills", Flag = "WebhookIncludeKills", Default = true, Tooltip = "Send kill count", Callback = function(v) Settings.WebhookIncludeKills = v end })
-    WebhookFieldsSection:Toggle({ Name = "Include PvP Wins", Flag = "WebhookIncludePvPWins", Default = true, Tooltip = "Send PvP wins", Callback = function(v) Settings.WebhookIncludePvPWins = v end })
     WebhookFieldsSection:Toggle({ Name = "Include Gems", Flag = "WebhookIncludeGems", Default = true, Tooltip = "Send gem count", Callback = function(v) Settings.WebhookIncludeGems = v end })
     WebhookFieldsSection:Divider("Session")
     WebhookFieldsSection:Toggle({ Name = "Include Phase", Flag = "WebhookIncludePhase", Default = true, Tooltip = "Send current auto phase", Callback = function(v) Settings.WebhookIncludePhase = v end })
