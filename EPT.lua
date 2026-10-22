@@ -171,6 +171,7 @@ local SCRIPT_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs
 local CHANGELOG_TEXT = [[
 Version: 1.5.1
 + Auto Select Element clicks the Pick Your Power button
+! Auto Rebirth no longer pulls you off a world boss. The boss is fought until the rebirth button is ready
 
 Version: 1.5.0
 * Updated spell list
@@ -292,6 +293,7 @@ for name in pairs(MYSTERY_POWERS) do
 end
 table.sort(MYSTERY_ELEMENTS)
 
+-- Teams you can take without a gem element or Super Sonic.
 local TYCOON_ELEMENTS = {
     "Bone", "Crystal", "Darkness", "Devil", "Earth", "Fire", "Gravity",
     "Ice", "Lava", "Light", "Nature", "Space", "Technology", "Thunder",
@@ -526,6 +528,9 @@ local function getHillCapturePos()
     if not hill then return nil end
     local floors = getHillFloorYs(hill.Position.X, hill.Position.Z)
     local surfaceY = floors[1] or hill.Position.Y
+    -- The center is solid grass stacked downward. Standing on the first
+    -- underground hit puts the body inside that mesh, and physics then
+    -- ejects the character upward. Stay below the visible surface instead.
     local standY = surfaceY - 8
     if standY > hill.Position.Y - 4 then
         standY = hill.Position.Y - 8
@@ -692,6 +697,7 @@ local function canRebirth()
     if prompt then
         return true
     end
+    -- fallback: tycoon finished (no buy buttons left)
     return #getOwnedButtons() == 0 and getMyTycoon() ~= nil
 end
 
@@ -1167,6 +1173,7 @@ local function clickPowerCoin(part)
     return sent
 end
 
+-- True while the player still has no element, so the rest of the tick waits.
 local function doAutoSelectElement()
     if not autoOn("AutoSelectElement") then
         return false
@@ -1338,6 +1345,7 @@ local function doAutoHill()
                 hrpNow.AssemblyLinearVelocity = Vector3.zero
                 hrpNow.CFrame = CFrame.new(capturePos)
             end
+            -- Stay noclip. Turning collision on inside the grass launches the character into the sky.
             hillHolding = true
             startHillWalk()
 
@@ -1495,6 +1503,7 @@ local function doAutoChests()
     local part = best:IsA("BasePart") and best or best:FindFirstChildWhichIsA("BasePart", true)
     local prompt = findPrompt(best)
     if part then tweenTo(part.Position) end
+    -- The chest script drops the prompt when the server still sees you more than 30 studs away.
     task.wait(0.6)
     if prompt then triggerPrompt(prompt) end
 end
@@ -1763,9 +1772,31 @@ local function doHalloweenTick()
     end
 end
 
+local function liveBoss()
+    if not Settings.AutoBoss then
+        return nil
+    end
+    local target = nearestTarget(true)
+    if target and target.isBoss then
+        return target
+    end
+    return nil
+end
+
 local function runAutoTick()
     syncSettingsFromUI()
     if doAutoSelectElement() then
+        return
+    end
+    -- Full auto used to walk off to collect, hill, and rebirth before the boss
+    -- attack, so turning on auto rebirth looked like the boss was skipped.
+    if liveBoss() and not hillBusy then
+        if autoOn("AutoRebirth") and getRebirthPrompt() then
+            doAutoRebirth()
+        end
+        doAutoStats()
+        doAutoEquipRebirthSpell()
+        doAutoAttack(true)
         return
     end
     if not hillBusy then
@@ -2498,7 +2529,7 @@ end
     ToggleRefs.AutoBuy = TycoonSection:Toggle({ Name = "Auto Buy", Flag = "AutoBuy", Default = false, Tooltip = "Buys the cheapest button you can afford", Callback = function(v) Settings.AutoBuy = v end })
     ToggleRefs.AutoHill = TycoonSection:Toggle({ Name = "Auto Capture Hill", Flag = "AutoHill", Default = false, Tooltip = "Holds you under the center until the hill is yours, then returns. Skips while you already own it", Callback = function(v) Settings.AutoHill = v end })
 
-    ProgressSection:Toggle({ Name = "Auto Rebirth", Flag = "AutoRebirth", Default = false, Tooltip = "Rebirths when the rebirth button is ready. The HUD percent is not used", Callback = function(v) Settings.AutoRebirth = v end })
+    ProgressSection:Toggle({ Name = "Auto Rebirth", Flag = "AutoRebirth", Default = false, Tooltip = "Rebirths when the rebirth button is ready. The HUD percent is not used. A world boss is kept until that button is on", Callback = function(v) Settings.AutoRebirth = v end })
     ProgressSection:Divider("Skill Points")
     ProgressSection:Toggle({ Name = "Auto Spend Skill Points", Flag = "AutoStats", Default = false, Tooltip = "Spend rebirth skill points", Callback = function(v) Settings.AutoStats = v end })
     ProgressSection:Dropdown({
@@ -2545,7 +2576,7 @@ end
     local CombatSection = CombatPage:Section({ Name = "Combat", Icon = "swords", Side = 1, LayoutOrder = 0 })
 
     CombatSection:Toggle({ Name = "Auto Attack", Flag = "AutoAttack", Default = false, Tooltip = "Casts your equipped spell at the nearest enemy", Callback = function(v) Settings.AutoAttack = v end })
-    CombatSection:Toggle({ Name = "Auto Boss Farm", Flag = "AutoBoss", Default = false, Tooltip = "Attacks world bosses first, including Magma Lord and Headless. If none are up, attacks the nearest enemy", Callback = function(v) Settings.AutoBoss = v end })
+    CombatSection:Toggle({ Name = "Auto Boss Farm", Flag = "AutoBoss", Default = false, Tooltip = "Stays on a world boss, including Magma Lord and Headless, instead of leaving for the tycoon. Rebirth still runs once that button is ready. If no boss is up, the tycoon loop runs and the nearest enemy is attacked", Callback = function(v) Settings.AutoBoss = v end })
     CombatSection:Toggle({ Name = "Attack Players", Flag = "AttackPlayers", Default = false, Tooltip = "Auto Attack can also target other players", Callback = function(v) Settings.AttackPlayers = v end })
     CombatSection:Divider("Manual")
     CombatSection:Button({
