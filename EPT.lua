@@ -122,6 +122,8 @@ local Stats = cloneref(game:GetService("Stats"))
 local TeleportService = cloneref(game:GetService("TeleportService"))
 local HttpService = cloneref(game:GetService("HttpService"))
 local TweenService = cloneref(game:GetService("TweenService"))
+local GuiService = cloneref(game:GetService("GuiService"))
+local VirtualInputManager = cloneref(game:GetService("VirtualInputManager"))
 
 local function httpGetString(url, retries)
     retries = retries or 4
@@ -167,6 +169,9 @@ local DISCORD_JOIN_URL = "https://pastebin.com/raw/iYvRJrSf"
 local BOOSTFPS_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/BoostFPS.lua"
 local SCRIPT_URL = "https://raw.githubusercontent.com/samuraa1/Samuraa1-Hub/refs/heads/main/EPT.lua"
 local CHANGELOG_TEXT = [[
+Version: 1.5.1
++ Auto Select Element clicks the Pick Your Power button
+
 Version: 1.5.0
 * Updated spell list
 + Added Wind
@@ -215,6 +220,7 @@ local lastHill = 0
 local lastHeal = 0
 local lastStat = 0
 local lastEquipSpell = 0
+local lastSelectElement = 0
 local webhookAutoLoopStarted = false
 local moveBusy = false
 local hillBusy = false
@@ -286,8 +292,20 @@ for name in pairs(MYSTERY_POWERS) do
 end
 table.sort(MYSTERY_ELEMENTS)
 
+local TYCOON_ELEMENTS = {
+    "Bone", "Crystal", "Darkness", "Devil", "Earth", "Fire", "Gravity",
+    "Ice", "Lava", "Light", "Nature", "Space", "Technology", "Thunder",
+    "Time", "Venom", "Water", "Wind",
+}
+local TYCOON_ELEMENT_SET = {}
+for _, name in TYCOON_ELEMENTS do
+    TYCOON_ELEMENT_SET[name] = true
+end
+
 local Settings = {
     FullAuto = false,
+    AutoSelectElement = false,
+    SelectedTycoonElement = "Fire",
     AutoCollect = false,
     AutoBuy = false,
     AutoHill = false,
@@ -382,7 +400,8 @@ end
 
 local function autoOn(key)
     if Settings.FullAuto then
-        if key == "AutoCollect"
+        if key == "AutoSelectElement"
+            or key == "AutoCollect"
             or key == "AutoBuy"
             or key == "AutoHill"
             or key == "AutoRebirth"
@@ -507,9 +526,6 @@ local function getHillCapturePos()
     if not hill then return nil end
     local floors = getHillFloorYs(hill.Position.X, hill.Position.Z)
     local surfaceY = floors[1] or hill.Position.Y
-    -- The center is solid grass stacked downward. Standing on the first
-    -- underground hit puts the body inside that mesh, and physics then
-    -- ejects the character upward. Stay below the visible surface instead.
     local standY = surfaceY - 8
     if standY > hill.Position.Y - 4 then
         standY = hill.Position.Y - 8
@@ -676,7 +692,6 @@ local function canRebirth()
     if prompt then
         return true
     end
-    -- fallback: tycoon finished (no buy buttons left)
     return #getOwnedButtons() == 0 and getMyTycoon() ~= nil
 end
 
@@ -1014,6 +1029,196 @@ end
 
 -- ===================== AUTOMATION =====================
 
+local function getCurrentElement()
+    local team = plr.Team
+    if team and team.Name ~= "For Hire!" and team.Name ~= "" then
+        return team.Name
+    end
+    return nil
+end
+
+local function chosenTycoonElement()
+    local name = Settings.SelectedTycoonElement
+    if type(name) ~= "string" or not TYCOON_ELEMENT_SET[name] then
+        return "Fire"
+    end
+    return name
+end
+
+local function claimGatePart(tycoon)
+    local aux = tycoon and tycoon:FindFirstChild("Auxiliary")
+    local gate = aux and aux:FindFirstChild("Gate")
+    local part = gate and gate:FindFirstChild("Part")
+    if part and part:IsA("BasePart") then
+        return part
+    end
+    return nil
+end
+
+local function nearestClaimGate()
+    local folder = Workspace:FindFirstChild("Tycoons")
+    local _, _, hrp = getCharacter()
+    if not folder or not hrp then
+        return nil
+    end
+    local best, bestDist
+    for _, child in folder:GetChildren() do
+        if child.Name == "Claim" then
+            local part = claimGatePart(child)
+            if part then
+                local dist = (part.Position - hrp.Position).Magnitude
+                if not bestDist or dist < bestDist then
+                    best, bestDist = part, dist
+                end
+            end
+        end
+    end
+    return best
+end
+
+local function findPowerPicker()
+    local cam = Workspace.CurrentCamera
+    if not cam then
+        return nil
+    end
+    local gui = plr:FindFirstChild("PlayerGui")
+    local selection = gui and gui:FindFirstChild("SelectionUI")
+    if not selection or not selection.Enabled then
+        return nil
+    end
+    local best, bestDist
+    for _, child in Workspace:GetChildren() do
+        if child.Name == "Coins" and child:FindFirstChild("Part") and child:FindFirstChild("Fire") then
+            local dist = (child.Part.Position - cam.CFrame.Position).Magnitude
+            if dist < 15 and (not bestDist or dist < bestDist) then
+                best, bestDist = child, dist
+            end
+        end
+    end
+    return best
+end
+
+local function coinReady(part)
+    if not part or not part:IsA("BasePart") or not part.CanQuery then
+        return false
+    end
+    if plr:GetAttribute("VIP") == true then
+        return true
+    end
+    local lock = part:FindFirstChild("Lock0")
+    if lock and lock.Transparency <= 0.05 then
+        return false
+    end
+    return true
+end
+
+local function choosePowerCoin(model)
+    local want = model:FindFirstChild(chosenTycoonElement())
+    if coinReady(want) then
+        return want
+    end
+    local fire = model:FindFirstChild("Fire")
+    if coinReady(fire) then
+        return fire
+    end
+    for _, name in TYCOON_ELEMENTS do
+        local part = model:FindFirstChild(name)
+        if coinReady(part) then
+            return part
+        end
+    end
+    for _, child in model:GetChildren() do
+        if child:IsA("BasePart") and child.Name ~= "Part" and coinReady(child) then
+            return child
+        end
+    end
+    return nil
+end
+
+local function clickPowerCoin(part)
+    local cam = Workspace.CurrentCamera
+    if not cam then
+        return false
+    end
+    local screen, onScreen = cam:WorldToViewportPoint(part.Position)
+    if not onScreen or screen.Z <= 0 then
+        return false
+    end
+    local inset = GuiService:GetGuiInset()
+    local x = screen.X
+    local y = screen.Y + inset.Y
+    local sent = false
+    local ok = pcall(function()
+        VirtualInputManager:SendMouseMoveEvent(x, y, game)
+        task.wait(0.12)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, true, game, 0)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(x, y, 0, false, game, 0)
+        sent = true
+    end)
+    if (not ok or not sent) and typeof(mousemoveabs) == "function" and typeof(mouse1click) == "function" then
+        pcall(function()
+            mousemoveabs(x, y)
+            task.wait(0.08)
+            mouse1click()
+            sent = true
+        end)
+    end
+    return sent
+end
+
+local function doAutoSelectElement()
+    if not autoOn("AutoSelectElement") then
+        return false
+    end
+    if getCurrentElement() then
+        return false
+    end
+
+    local picker = findPowerPicker()
+    if picker then
+        if os.clock() - lastSelectElement < 1.2 then
+            autoPhase = "Selecting Element"
+            return true
+        end
+        local coin = choosePowerCoin(picker)
+        if not coin then
+            autoPhase = "Element Locked"
+            return true
+        end
+        lastSelectElement = os.clock()
+        autoPhase = "Selecting " .. coin.Name
+        clickPowerCoin(coin)
+        task.wait(0.4)
+        return getCurrentElement() == nil
+    end
+
+    if os.clock() - lastSelectElement < 3.5 then
+        autoPhase = "Selecting Element"
+        return true
+    end
+    local _, _, hrp = getCharacter()
+    if not hrp then
+        return true
+    end
+    if getMyTycoon() then
+        autoPhase = "Waiting For Powers"
+        return true
+    end
+
+    lastSelectElement = os.clock()
+    local gate = nearestClaimGate()
+    if not gate then
+        autoPhase = "No Free Plot"
+        return true
+    end
+    autoPhase = "Claiming Plot"
+    tweenTo(gate.Position)
+    task.wait(0.2)
+    touchPart(gate)
+    return true
+end
+
 local function doAutoCollect()
     if not autoOn("AutoCollect") then return end
     if os.clock() - lastCollect < 1.25 then return end
@@ -1133,7 +1338,6 @@ local function doAutoHill()
                 hrpNow.AssemblyLinearVelocity = Vector3.zero
                 hrpNow.CFrame = CFrame.new(capturePos)
             end
-            -- Stay noclip. Turning collision on inside the grass launches the character into the sky.
             hillHolding = true
             startHillWalk()
 
@@ -1291,7 +1495,6 @@ local function doAutoChests()
     local part = best:IsA("BasePart") and best or best:FindFirstChildWhichIsA("BasePart", true)
     local prompt = findPrompt(best)
     if part then tweenTo(part.Position) end
-    -- The chest script drops the prompt when the server still sees you more than 30 studs away.
     task.wait(0.6)
     if prompt then triggerPrompt(prompt) end
 end
@@ -1562,6 +1765,9 @@ end
 
 local function runAutoTick()
     syncSettingsFromUI()
+    if doAutoSelectElement() then
+        return
+    end
     if not hillBusy then
         doAutoCollect()
         doAutoBuy()
@@ -1594,6 +1800,7 @@ local function startAutoLoop()
         while autoLoopRunning do
             syncSettingsFromUI()
             local active = Settings.FullAuto
+                or Settings.AutoSelectElement
                 or Settings.AutoCollect
                 or Settings.AutoBuy
                 or Settings.AutoHill
@@ -2160,7 +2367,7 @@ end
 
     local Window = Library:Window({
         Name = "Samuraa1 Hub",
-        SubName = "Elemental Powers Tycoon | v1.5.0",
+        SubName = "Elemental Powers Tycoon | v1.5.1",
         Logo = "97594400820219",
         MobileScale = UserInputService.TouchEnabled and 0.72 or nil,
     })
@@ -2265,12 +2472,27 @@ end
         Name = "Full Auto",
         Flag = "FullAuto",
         Default = false,
-        Tooltip = "Collect + buy + hill + rebirth + chests + balloons + heal",
+        Tooltip = "Selects an element if you have none, then collect, buy, hill, rebirth, chests, balloons, and heal",
         Callback = function(v)
             Settings.FullAuto = v
             autoPhase = v and "Starting" or "Idle"
             if v then notify("Full Auto", "Enabled — sit back", 3) end
         end,
+    })
+    TycoonSection:Toggle({
+        Name = "Auto Select Element",
+        Flag = "AutoSelectElement",
+        Default = false,
+        Tooltip = "Claims a free plot, then clicks your element on Pick Your Power. Skips locked icons and leaves an element you already have",
+        Callback = function(v) Settings.AutoSelectElement = v end,
+    })
+    TycoonSection:Dropdown({
+        Name = "Tycoon Element",
+        Flag = "SelectedTycoonElement",
+        Items = TYCOON_ELEMENTS,
+        Default = Settings.SelectedTycoonElement,
+        Tooltip = "Which Pick Your Power icon to click. If that one is locked, the next free one is used",
+        Callback = function(v) Settings.SelectedTycoonElement = v end,
     })
     ToggleRefs.AutoCollect = TycoonSection:Toggle({ Name = "Auto Collect", Flag = "AutoCollect", Default = false, Tooltip = "Goes to your collector and picks up cash", Callback = function(v) Settings.AutoCollect = v end })
     ToggleRefs.AutoBuy = TycoonSection:Toggle({ Name = "Auto Buy", Flag = "AutoBuy", Default = false, Tooltip = "Buys the cheapest button you can afford", Callback = function(v) Settings.AutoBuy = v end })
