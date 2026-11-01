@@ -298,7 +298,6 @@ for name in pairs(MYSTERY_POWERS) do
 end
 table.sort(MYSTERY_ELEMENTS)
 
--- Teams you can take without a gem element or Super Sonic.
 local TYCOON_ELEMENTS = {
     "Bone", "Crystal", "Darkness", "Devil", "Earth", "Fire", "Gravity",
     "Ice", "Lava", "Light", "Nature", "Space", "Technology", "Thunder",
@@ -1838,7 +1837,7 @@ local function ensureBillboard(model, text, color, cache, useHighlight)
         cache[model] = entry
 
         local gui = Instance.new("BillboardGui")
-        gui.Name = "Samuraa1ESP"
+        gui.Name = "x"
         gui.Adornee = adornee
         gui.AlwaysOnTop = true
         gui.LightInfluence = 0
@@ -1882,7 +1881,7 @@ local function ensureBillboard(model, text, color, cache, useHighlight)
 
         if useHighlight then
             local highlight = Instance.new("Highlight")
-            highlight.Name = "Samuraa1ESP"
+            highlight.Name = "a"
             highlight.Adornee = model:IsA("Model") and model or adornee
             highlight.FillTransparency = 0.65
             highlight.OutlineTransparency = 0
